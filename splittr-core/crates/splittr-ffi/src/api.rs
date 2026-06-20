@@ -9,11 +9,11 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use splittr_app::{
-    App, Cents, GroupId, Identity, PairingTranscript, PublicKey, RedbOpStore, SettlementId, SiteId,
-    UserId,
+    App, Cents, ExpenseDraft, GroupId, Identity, PairingTranscript, PublicKey, RedbOpStore,
+    SettlementId, SiteId, UserId,
 };
 
-use crate::convert::{to_original, to_paid_by, to_split_plan};
+use crate::convert::to_fields;
 use crate::dto::{
     ActivityEntryDto, DeviceViewDto, ExpenseInput, FriendBalanceDto, FriendDetailDto,
     GroupDetailDto, GroupSummaryDto,
@@ -167,53 +167,12 @@ impl Engine {
     // --- expenses ----------------------------------------------------------
 
     pub fn add_expense(&self, input: ExpenseInput) -> Result<String> {
-        let paid_by = to_paid_by(input.paid_by);
-        let plan = to_split_plan(input.split);
-        let total = Cents(input.total_cents);
-        let original = to_original(input.original);
-        let mut app = self.lock();
-        let id = match input.group_id {
-            Some(group_id) => {
-                let group = GroupId::new(group_id);
-                if input.draft {
-                    app.add_draft_expense(
-                        &group,
-                        &input.description,
-                        paid_by,
-                        total,
-                        plan,
-                        &input.category,
-                        input.notes,
-                        input.date_ms,
-                        original,
-                    )?
-                } else {
-                    app.add_expense(
-                        &group,
-                        &input.description,
-                        paid_by,
-                        total,
-                        plan,
-                        &input.category,
-                        input.notes,
-                        input.date_ms,
-                        original,
-                    )?
-                }
-            }
-            None => app.add_non_group_expense(
-                &input.description,
-                paid_by,
-                total,
-                plan,
-                &input.category,
-                input.notes,
-                input.date_ms,
-                original,
-                input.draft,
-            )?,
+        let draft = ExpenseDraft {
+            group: input.group_id.clone().map(GroupId::new),
+            draft: input.draft,
+            fields: to_fields(input),
         };
-        Ok(id.0)
+        Ok(self.lock().add_expense(draft)?.0)
     }
 
     /// Publish a draft expense so it counts toward balances (#15).
@@ -231,23 +190,11 @@ impl Engine {
         Ok(())
     }
 
-    /// Replace an expense with a new version. `input.group_id` is ignored (an
-    /// expense cannot change groups).
+    /// Replace an expense with a new version. `input.group_id`/`draft` are
+    /// ignored (an expense cannot change groups, and edit preserves draft state).
     pub fn edit_expense(&self, expense_id: String, input: ExpenseInput) -> Result<()> {
-        let paid_by = to_paid_by(input.paid_by);
-        let plan = to_split_plan(input.split);
-        let original = to_original(input.original);
-        self.lock().edit_expense(
-            &splittr_app::ExpenseId::new(expense_id),
-            &input.description,
-            paid_by,
-            Cents(input.total_cents),
-            plan,
-            &input.category,
-            input.notes,
-            input.date_ms,
-            original,
-        )?;
+        self.lock()
+            .edit_expense(&splittr_app::ExpenseId::new(expense_id), to_fields(input))?;
         Ok(())
     }
 

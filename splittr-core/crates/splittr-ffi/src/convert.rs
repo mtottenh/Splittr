@@ -4,15 +4,15 @@
 use std::collections::BTreeMap;
 
 use splittr_app::{
-    ActivityEntry, Cents, DeviceView, ExpenseView, FriendBalance, FriendDetail, GroupDetail,
-    GroupSummary, MemberAmount, MemberBalance, OriginalAmount, SettlementView, SplitPlan, Transfer,
-    UserId,
+    ActivityEntry, Cents, DeviceView, ExpenseFieldsInput, ExpenseView, FriendBalance, FriendDetail,
+    GroupDetail, GroupSummary, MemberAmount, MemberBalance, OriginalAmount, SettlementView,
+    SplitPlan, Transfer, UserId,
 };
 
 use crate::dto::{
-    ActivityEntryDto, DeviceViewDto, ExpenseViewDto, FriendBalanceDto, FriendDetailDto,
-    GroupDetailDto, GroupSummaryDto, MemberAmountDto, MemberBalanceDto, OriginalAmountDto, Payer,
-    SettlementViewDto, SplitPlanDto, TransferDto, Weight,
+    ActivityEntryDto, DeviceViewDto, ExpenseInput, ExpenseViewDto, FriendBalanceDto,
+    FriendDetailDto, GroupDetailDto, GroupSummaryDto, MemberAmountDto, MemberBalanceDto,
+    OriginalAmountDto, Payer, SettlementViewDto, SplitPlanDto, TransferDto, Weight,
 };
 
 impl From<DeviceView> for DeviceViewDto {
@@ -42,6 +42,21 @@ impl From<OriginalAmount> for OriginalAmountDto {
             amount_cents: o.amount.0,
             rate_micro: o.rate_micro as i64,
         }
+    }
+}
+
+/// FFI → domain conversion for the editable expense fields (#3/#15/#31). The
+/// `group_id`/`draft` flags on [`ExpenseInput`] are handled by the caller.
+pub(crate) fn to_fields(input: ExpenseInput) -> ExpenseFieldsInput {
+    ExpenseFieldsInput {
+        description: input.description,
+        paid_by: to_paid_by(input.paid_by),
+        total: Cents(input.total_cents),
+        split: to_split_plan(input.split),
+        category: input.category,
+        notes: input.notes,
+        date_ms: input.date_ms,
+        original: to_original(input.original),
     }
 }
 

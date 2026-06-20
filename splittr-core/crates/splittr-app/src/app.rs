@@ -198,155 +198,29 @@ impl<S: OpStore> App<S> {
 
     // --- expenses ----------------------------------------------------------
 
-    /// Add an expense to a group and return its id.
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_expense(
-        &mut self,
-        group: &GroupId,
-        description: &str,
-        paid_by: BTreeMap<UserId, Cents>,
-        total: Cents,
-        split: SplitPlan,
-        category: &str,
-        notes: Option<String>,
-        date_ms: i64,
-        original: Option<OriginalAmount>,
-    ) -> Result<ExpenseId> {
-        self.create_expense(
-            Some(group),
-            description,
-            paid_by,
-            total,
-            split,
-            category,
-            notes,
-            date_ms,
-            original,
-            false,
-        )
-    }
-
-    /// Add a private draft expense (excluded from balances until published, #15).
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_draft_expense(
-        &mut self,
-        group: &GroupId,
-        description: &str,
-        paid_by: BTreeMap<UserId, Cents>,
-        total: Cents,
-        split: SplitPlan,
-        category: &str,
-        notes: Option<String>,
-        date_ms: i64,
-        original: Option<OriginalAmount>,
-    ) -> Result<ExpenseId> {
-        self.create_expense(
-            Some(group),
-            description,
-            paid_by,
-            total,
-            split,
-            category,
-            notes,
-            date_ms,
-            original,
-            true,
-        )
-    }
-
-    /// Add a non-group (friend-to-friend) expense — no group membership is
-    /// required; the participants are implied by `paid_by`/`split` (#31).
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_non_group_expense(
-        &mut self,
-        description: &str,
-        paid_by: BTreeMap<UserId, Cents>,
-        total: Cents,
-        split: SplitPlan,
-        category: &str,
-        notes: Option<String>,
-        date_ms: i64,
-        original: Option<OriginalAmount>,
-        draft: bool,
-    ) -> Result<ExpenseId> {
-        self.create_expense(
-            None,
-            description,
-            paid_by,
-            total,
-            split,
-            category,
-            notes,
-            date_ms,
-            original,
-            draft,
-        )
-    }
-
-    /// Shared create path for group/non-group and active/draft expenses
-    /// (one implementation — DRY).
-    #[allow(clippy::too_many_arguments)]
-    fn create_expense(
-        &mut self,
-        group: Option<&GroupId>,
-        description: &str,
-        paid_by: BTreeMap<UserId, Cents>,
-        total: Cents,
-        split: SplitPlan,
-        category: &str,
-        notes: Option<String>,
-        date_ms: i64,
-        original: Option<OriginalAmount>,
-        draft: bool,
-    ) -> Result<ExpenseId> {
-        if let Some(group) = group {
+    /// Create an expense (group or non-group, active or draft) and return its id.
+    /// One path for every shape — placement and draft-ness live on the
+    /// [`ExpenseDraft`] (#15/#31).
+    pub fn add_expense(&mut self, draft: ExpenseDraft) -> Result<ExpenseId> {
+        if let Some(group) = &draft.group {
             self.require_member(group)?;
         }
-        let fields = build_fields(
-            description,
-            paid_by,
-            total,
-            split,
-            category,
-            notes,
-            date_ms,
-            original,
-        )?;
+        let fields = build_fields(draft.fields)?;
         let expense = ExpenseId::new(format!("expense:{}", Uuid::new_v4()));
         self.commit(OpKind::CreateExpense {
             expense: expense.clone(),
-            group: group.cloned(),
+            group: draft.group,
             fields,
-            draft,
+            draft: draft.draft,
         })?;
         Ok(expense)
     }
 
-    /// Replace an expense with a new version (whole-version LWW).
-    #[allow(clippy::too_many_arguments)]
-    pub fn edit_expense(
-        &mut self,
-        expense: &ExpenseId,
-        description: &str,
-        paid_by: BTreeMap<UserId, Cents>,
-        total: Cents,
-        split: SplitPlan,
-        category: &str,
-        notes: Option<String>,
-        date_ms: i64,
-        original: Option<OriginalAmount>,
-    ) -> Result<()> {
+    /// Replace an expense with a new version (whole-version LWW). An expense
+    /// can't change groups, so only its [`ExpenseFieldsInput`] is supplied.
+    pub fn edit_expense(&mut self, expense: &ExpenseId, fields: ExpenseFieldsInput) -> Result<()> {
         self.require_editable(expense)?;
-        let fields = build_fields(
-            description,
-            paid_by,
-            total,
-            split,
-            category,
-            notes,
-            date_ms,
-            original,
-        )?;
+        let fields = build_fields(fields)?;
         self.commit(OpKind::EditExpense {
             expense: expense.clone(),
             fields,
@@ -601,20 +475,43 @@ impl<S: OpStore> App<S> {
     }
 }
 
-/// Validate inputs and assemble a balanced [`ExpenseFields`]. Amounts are in the
-/// expense's base currency; `original` carries the pre-conversion amount/rate for
-/// a foreign-currency expense (#3).
-#[allow(clippy::too_many_arguments)]
-fn build_fields(
-    description: &str,
-    paid_by: BTreeMap<UserId, Cents>,
-    total: Cents,
-    split: SplitPlan,
-    category: &str,
-    notes: Option<String>,
-    date_ms: i64,
-    original: Option<OriginalAmount>,
-) -> Result<ExpenseFields> {
+/// The editable content of an expense — shared by create and edit, so the same
+/// validated shape is threaded once instead of through positional args. Amounts
+/// are in the expense's base currency; `original` carries the pre-conversion
+/// amount/rate for a foreign-currency expense (#3).
+pub struct ExpenseFieldsInput {
+    pub description: String,
+    pub paid_by: BTreeMap<UserId, Cents>,
+    pub total: Cents,
+    pub split: SplitPlan,
+    pub category: String,
+    pub notes: Option<String>,
+    pub date_ms: i64,
+    pub original: Option<OriginalAmount>,
+}
+
+/// A new expense to create: its [`ExpenseFieldsInput`] plus placement (`group`
+/// = `None` for a non-group friend expense, #31) and whether it starts as a
+/// private draft (#15).
+pub struct ExpenseDraft {
+    pub fields: ExpenseFieldsInput,
+    pub group: Option<GroupId>,
+    pub draft: bool,
+}
+
+/// Validate inputs and assemble a balanced [`ExpenseFields`].
+fn build_fields(input: ExpenseFieldsInput) -> Result<ExpenseFields> {
+    let ExpenseFieldsInput {
+        description,
+        paid_by,
+        total,
+        split,
+        category,
+        notes,
+        date_ms,
+        original,
+    } = input;
+
     if total.0 <= 0 {
         return Err(AppError::Validation("total must be positive".into()));
     }
@@ -633,8 +530,8 @@ fn build_fields(
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
     let mut fields = ExpenseFields::new(paid_by, total, splits);
-    fields.description = description.to_string();
-    fields.category = category.to_string();
+    fields.description = description;
+    fields.category = category;
     fields.notes = notes;
     fields.date_ms = date_ms;
     fields.original = original;

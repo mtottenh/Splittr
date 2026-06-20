@@ -20,6 +20,40 @@ fn paid(user: &UserId, cents: i64) -> BTreeMap<UserId, Cents> {
     m
 }
 
+fn equal(users: &[&UserId]) -> SplitPlan {
+    SplitPlan::Equal {
+        participants: users.iter().map(|u| (*u).clone()).collect(),
+    }
+}
+
+/// Editable fields with the common defaults (category, t=0, no notes/original).
+fn fields(
+    description: &str,
+    paid_by: BTreeMap<UserId, Cents>,
+    total: Cents,
+    split: SplitPlan,
+) -> ExpenseFieldsInput {
+    ExpenseFieldsInput {
+        description: description.into(),
+        paid_by,
+        total,
+        split,
+        category: "general".into(),
+        notes: None,
+        date_ms: 0,
+        original: None,
+    }
+}
+
+/// An active group expense from the given fields.
+fn group_expense(group: &GroupId, fields: ExpenseFieldsInput) -> ExpenseDraft {
+    ExpenseDraft {
+        fields,
+        group: Some(group.clone()),
+        draft: false,
+    }
+}
+
 #[test]
 fn create_group_add_expense_then_settle_up() {
     let mut app = new_app();
@@ -31,19 +65,10 @@ fn create_group_add_expense_then_settle_up() {
         .unwrap();
 
     // I pay 30.00, split equally between me and Bob.
-    app.add_expense(
+    app.add_expense(group_expense(
         &group,
-        "Hotel",
-        paid(&me, 3000),
-        Cents(3000),
-        SplitPlan::Equal {
-            participants: vec![me.clone(), bob.clone()],
-        },
-        "travel",
-        None,
-        0,
-        None,
-    )
+        fields("Hotel", paid(&me, 3000), Cents(3000), equal(&[&me, &bob])),
+    ))
     .unwrap();
 
     let detail = app.group_detail(&group).unwrap();
@@ -75,19 +100,10 @@ fn group_summary_shows_my_balance_and_names() {
     let group = app
         .create_group("Trip", std::slice::from_ref(&bob))
         .unwrap();
-    app.add_expense(
+    app.add_expense(group_expense(
         &group,
-        "Lunch",
-        paid(&me, 1000),
-        Cents(1000),
-        SplitPlan::Equal {
-            participants: vec![me.clone(), bob.clone()],
-        },
-        "food",
-        None,
-        0,
-        None,
-    )
+        fields("Lunch", paid(&me, 1000), Cents(1000), equal(&[&me, &bob])),
+    ))
     .unwrap();
 
     let summaries = app.groups();
@@ -113,17 +129,15 @@ fn weighted_split_through_the_app() {
     let mut weights = BTreeMap::new();
     weights.insert(me.clone(), 3u64);
     weights.insert(bob.clone(), 1u64);
-    app.add_expense(
+    app.add_expense(group_expense(
         &group,
-        "Dinner",
-        paid(&me, 1000),
-        Cents(1000),
-        SplitPlan::Weighted { weights },
-        "food",
-        None,
-        0,
-        None,
-    )
+        fields(
+            "Dinner",
+            paid(&me, 1000),
+            Cents(1000),
+            SplitPlan::Weighted { weights },
+        ),
+    ))
     .unwrap();
 
     // I owe 3/4 (750), paid 1000 → net +250.
@@ -143,19 +157,10 @@ fn unbalanced_expense_is_rejected() {
 
     // Payments (999) don't equal the total (1000).
     let err = app
-        .add_expense(
+        .add_expense(group_expense(
             &group,
-            "Oops",
-            paid(&me, 999),
-            Cents(1000),
-            SplitPlan::Equal {
-                participants: vec![me, bob],
-            },
-            "general",
-            None,
-            0,
-            None,
-        )
+            fields("Oops", paid(&me, 999), Cents(1000), equal(&[&me, &bob])),
+        ))
         .unwrap_err();
     assert!(matches!(err, AppError::Validation(_)));
     // Nothing was recorded.
@@ -190,19 +195,10 @@ fn non_member_cannot_add_expense_and_state_persists() {
 
     let me = outsider.me().clone();
     let err = outsider
-        .add_expense(
+        .add_expense(group_expense(
             &group,
-            "x",
-            paid(&me, 1000),
-            Cents(1000),
-            SplitPlan::Equal {
-                participants: vec![me],
-            },
-            "general",
-            None,
-            0,
-            None,
-        )
+            fields("x", paid(&me, 1000), Cents(1000), equal(&[&me])),
+        ))
         .unwrap_err();
     assert!(matches!(err, AppError::NotAuthorized(_)));
 }
@@ -216,19 +212,10 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
         .create_group("Trip", std::slice::from_ref(&bob))
         .unwrap();
     let expense = app
-        .add_expense(
+        .add_expense(group_expense(
             &group,
-            "Hotel",
-            paid(&me, 1000),
-            Cents(1000),
-            SplitPlan::Equal {
-                participants: vec![me.clone(), bob.clone()],
-            },
-            "travel",
-            None,
-            0,
-            None,
-        )
+            fields("Hotel", paid(&me, 1000), Cents(1000), equal(&[&me, &bob])),
+        ))
         .unwrap();
 
     app.lock_expense(&expense).unwrap();
@@ -236,16 +223,7 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
 
     let edit = app.edit_expense(
         &expense,
-        "Hotel!",
-        paid(&me, 1000),
-        Cents(1000),
-        SplitPlan::Equal {
-            participants: vec![me.clone(), bob.clone()],
-        },
-        "travel",
-        None,
-        0,
-        None,
+        fields("Hotel!", paid(&me, 1000), Cents(1000), equal(&[&me, &bob])),
     );
     assert!(matches!(edit, Err(AppError::Validation(_))));
     assert!(matches!(
@@ -257,16 +235,7 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
     app.unlock_expense(&expense).unwrap();
     app.edit_expense(
         &expense,
-        "Hotel!",
-        paid(&me, 1000),
-        Cents(1000),
-        SplitPlan::Equal {
-            participants: vec![me, bob],
-        },
-        "travel",
-        None,
-        0,
-        None,
+        fields("Hotel!", paid(&me, 1000), Cents(1000), equal(&[&me, &bob])),
     )
     .unwrap();
     assert_eq!(
@@ -286,19 +255,16 @@ fn draft_expense_is_excluded_then_counts_after_publish() {
         .unwrap();
 
     let expense = app
-        .add_draft_expense(
-            &group,
-            "Maybe dinner",
-            paid(&me, 4000),
-            Cents(4000),
-            SplitPlan::Equal {
-                participants: vec![me.clone(), bob.clone()],
-            },
-            "food",
-            None,
-            0,
-            None,
-        )
+        .add_expense(ExpenseDraft {
+            fields: fields(
+                "Maybe dinner",
+                paid(&me, 4000),
+                Cents(4000),
+                equal(&[&me, &bob]),
+            ),
+            group: Some(group.clone()),
+            draft: true,
+        })
         .unwrap();
 
     // The draft shows in the ledger but doesn't move balances.
@@ -348,20 +314,9 @@ fn group_currency_and_foreign_expense_metadata() {
         amount: Cents(3240),
         rate_micro: 925_926,
     };
-    app.add_expense(
-        &group,
-        "Hotel",
-        paid(&me, 3000),
-        Cents(3000),
-        SplitPlan::Equal {
-            participants: vec![me.clone(), bob.clone()],
-        },
-        "travel",
-        None,
-        0,
-        Some(original.clone()),
-    )
-    .unwrap();
+    let mut f = fields("Hotel", paid(&me, 3000), Cents(3000), equal(&[&me, &bob]));
+    f.original = Some(original.clone());
+    app.add_expense(group_expense(&group, f)).unwrap();
 
     let view = app.group_detail(&group).unwrap().expenses.remove(0);
     assert_eq!(view.currency, "EUR");
@@ -377,19 +332,16 @@ fn non_group_expense_shows_in_friend_detail_and_overall_net() {
     let bob = app.add_person("Bob").unwrap();
 
     // No group: I pay 20.00, split equally with Bob.
-    app.add_non_group_expense(
-        "Coffee runs",
-        paid(&me, 2000),
-        Cents(2000),
-        SplitPlan::Equal {
-            participants: vec![me.clone(), bob.clone()],
-        },
-        "food",
-        None,
-        0,
-        None,
-        false,
-    )
+    app.add_expense(ExpenseDraft {
+        fields: fields(
+            "Coffee runs",
+            paid(&me, 2000),
+            Cents(2000),
+            equal(&[&me, &bob]),
+        ),
+        group: None,
+        draft: false,
+    })
     .unwrap();
 
     // Overall net + pairwise friend balance both reflect it.
@@ -419,37 +371,23 @@ fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
         .unwrap();
 
     // An expense dated at t=100.
-    let expense = app
-        .add_expense(
-            &group,
-            "Old dinner",
+    let dated = |description: &str| {
+        let mut f = fields(
+            description,
             paid(&me, 1000),
             Cents(1000),
-            SplitPlan::Equal {
-                participants: vec![me.clone(), bob.clone()],
-            },
-            "food",
-            None,
-            100,
-            None,
-        )
+            equal(&[&me, &bob]),
+        );
+        f.date_ms = 100;
+        f
+    };
+    let expense = app
+        .add_expense(group_expense(&group, dated("Old dinner")))
         .unwrap();
 
     // Close the period up to t=200: the expense is now frozen.
     app.set_closed_period(&group, 200).unwrap();
-    let edit = app.edit_expense(
-        &expense,
-        "Renamed",
-        paid(&me, 1000),
-        Cents(1000),
-        SplitPlan::Equal {
-            participants: vec![me.clone(), bob.clone()],
-        },
-        "food",
-        None,
-        100,
-        None,
-    );
+    let edit = app.edit_expense(&expense, dated("Renamed"));
     assert!(matches!(edit, Err(AppError::Validation(_))));
     assert!(matches!(
         app.delete_expense(&expense),
@@ -458,20 +396,7 @@ fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
 
     // Reopening the period (lower watermark) re-enables edits.
     app.set_closed_period(&group, 0).unwrap();
-    app.edit_expense(
-        &expense,
-        "Renamed",
-        paid(&me, 1000),
-        Cents(1000),
-        SplitPlan::Equal {
-            participants: vec![me, bob],
-        },
-        "food",
-        None,
-        100,
-        None,
-    )
-    .unwrap();
+    app.edit_expense(&expense, dated("Renamed")).unwrap();
     assert_eq!(
         app.group_detail(&group).unwrap().expenses[0].description,
         "Renamed"

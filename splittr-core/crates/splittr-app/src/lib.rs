@@ -14,7 +14,7 @@ mod error;
 mod identity;
 mod query;
 
-pub use app::App;
+pub use app::{App, ExpenseDraft, ExpenseFieldsInput};
 pub use clock::HlcGenerator;
 pub use error::{AppError, Result};
 pub use identity::{user_id_for, Identity};
