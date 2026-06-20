@@ -225,6 +225,42 @@ fn settle_up_suggests_minimal_payments() {
 }
 
 #[test]
+fn expense_lock_is_lww_and_does_not_affect_presence() {
+    let create = op(
+        0,
+        OpKind::CreateExpense {
+            expense: ExpenseId::from("e0"),
+            group: GroupId::from("g0"),
+            fields: single_payer("a", 1000, &["a", "b"]),
+        },
+    );
+    let lock = op(
+        1,
+        OpKind::SetExpenseLock {
+            expense: ExpenseId::from("e0"),
+            locked: true,
+        },
+    );
+    let unlock = op(
+        2,
+        OpKind::SetExpenseLock {
+            expense: ExpenseId::from("e0"),
+            locked: false,
+        },
+    );
+
+    // Highest HLC (unlock) wins, regardless of delivery order; the expense is
+    // still present either way.
+    let p = project(&[unlock.clone(), lock.clone(), create.clone()]);
+    assert!(!p.expenses[&ExpenseId::from("e0")].locked);
+    assert_eq!(project(&[create.clone(), lock.clone(), unlock]), p);
+
+    // With only the lock, it reads as locked.
+    let locked = project(&[create, lock]);
+    assert!(locked.expenses[&ExpenseId::from("e0")].locked);
+}
+
+#[test]
 fn profile_name_is_lww() {
     let early = op(
         1,

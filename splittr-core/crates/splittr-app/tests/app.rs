@@ -201,3 +201,68 @@ fn non_member_cannot_add_expense_and_state_persists() {
         .unwrap_err();
     assert!(matches!(err, AppError::NotAuthorized(_)));
 }
+
+#[test]
+fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
+    let mut app = new_app();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+    let expense = app
+        .add_expense(
+            &group,
+            "Hotel",
+            paid(&me, 1000),
+            Cents(1000),
+            SplitPlan::Equal {
+                participants: vec![me.clone(), bob.clone()],
+            },
+            "travel",
+            None,
+            0,
+        )
+        .unwrap();
+
+    app.lock_expense(&expense).unwrap();
+    assert!(app.group_detail(&group).unwrap().expenses[0].locked);
+
+    let edit = app.edit_expense(
+        &expense,
+        "Hotel!",
+        paid(&me, 1000),
+        Cents(1000),
+        SplitPlan::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        "travel",
+        None,
+        0,
+    );
+    assert!(matches!(edit, Err(AppError::Validation(_))));
+    assert!(matches!(
+        app.delete_expense(&expense),
+        Err(AppError::Validation(_))
+    ));
+
+    // Unlock → edit succeeds.
+    app.unlock_expense(&expense).unwrap();
+    app.edit_expense(
+        &expense,
+        "Hotel!",
+        paid(&me, 1000),
+        Cents(1000),
+        SplitPlan::Equal {
+            participants: vec![me, bob],
+        },
+        "travel",
+        None,
+        0,
+    )
+    .unwrap();
+    assert_eq!(
+        app.group_detail(&group).unwrap().expenses[0].description,
+        "Hotel!"
+    );
+}

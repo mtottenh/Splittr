@@ -136,9 +136,7 @@ impl<S: OpStore> App<S> {
         notes: Option<String>,
         date_ms: i64,
     ) -> Result<()> {
-        if !self.repo.projection().expenses.contains_key(expense) {
-            return Err(AppError::NotFound(format!("expense {expense}")));
-        }
+        self.require_unlocked(expense)?;
         let fields = build_fields(description, paid_by, total, split, category, notes, date_ms)?;
         self.commit(OpKind::EditExpense {
             expense: expense.clone(),
@@ -147,9 +145,20 @@ impl<S: OpStore> App<S> {
     }
 
     pub fn delete_expense(&mut self, expense: &ExpenseId) -> Result<()> {
+        self.require_unlocked(expense)?;
         self.commit(OpKind::VoidExpense {
             expense: expense.clone(),
         })
+    }
+
+    /// Lock an expense against further edits/deletes (#15).
+    pub fn lock_expense(&mut self, expense: &ExpenseId) -> Result<()> {
+        self.set_expense_lock(expense, true)
+    }
+
+    /// Unlock a previously locked expense.
+    pub fn unlock_expense(&mut self, expense: &ExpenseId) -> Result<()> {
+        self.set_expense_lock(expense, false)
     }
 
     // --- settlements -------------------------------------------------------
@@ -223,6 +232,27 @@ impl<S: OpStore> App<S> {
                 "not a member of group {group}"
             ))),
         }
+    }
+
+    /// The expense must exist and not be locked.
+    fn require_unlocked(&self, expense: &ExpenseId) -> Result<()> {
+        match self.repo.projection().expenses.get(expense) {
+            None => Err(AppError::NotFound(format!("expense {expense}"))),
+            Some(rec) if rec.locked => Err(AppError::Validation("expense is locked".into())),
+            Some(_) => Ok(()),
+        }
+    }
+
+    fn set_expense_lock(&mut self, expense: &ExpenseId, locked: bool) -> Result<()> {
+        let group = match self.repo.projection().expenses.get(expense) {
+            None => return Err(AppError::NotFound(format!("expense {expense}"))),
+            Some(rec) => rec.group.clone(),
+        };
+        self.require_member(&group)?;
+        self.commit(OpKind::SetExpenseLock {
+            expense: expense.clone(),
+            locked,
+        })
     }
 }
 

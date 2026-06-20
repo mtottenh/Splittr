@@ -52,6 +52,7 @@ pub struct Materializer {
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
     expense_group: BTreeMap<ExpenseId, Stamped<GroupId>>,
     expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
+    expense_locked: BTreeMap<ExpenseId, Stamped<bool>>,
     expense_voided: BTreeSet<ExpenseId>,
     settlements: BTreeMap<SettlementId, Stamped<SettlementData>>,
     settlement_voided: BTreeSet<SettlementId>,
@@ -117,6 +118,13 @@ impl Materializer {
             }
             OpKind::VoidExpense { expense } => {
                 self.expense_voided.insert(expense.clone());
+            }
+            OpKind::SetExpenseLock { expense, locked } => {
+                lww(
+                    &mut self.expense_locked,
+                    expense.clone(),
+                    stamp(hlc, *locked),
+                );
             }
             OpKind::RecordSettlement {
                 settlement,
@@ -189,6 +197,11 @@ impl Materializer {
                     ExpenseRecord {
                         group: group.value.clone(),
                         fields: version.value.clone(),
+                        locked: self
+                            .expense_locked
+                            .get(id)
+                            .map(|s| s.value)
+                            .unwrap_or(false),
                     },
                 );
             }

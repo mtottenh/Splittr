@@ -32,6 +32,7 @@ pub struct ExpenseView {
     pub date_ms: i64,
     /// The current user's involvement: paid minus owed (positive = lent).
     pub my_net: Cents,
+    pub locked: bool,
 }
 
 /// Everything the group-detail screen needs.
@@ -99,6 +100,7 @@ pub fn group_detail(p: &Projection, me: &UserId, group: &GroupId) -> Option<Grou
                 category: e.fields.category.clone(),
                 date_ms: e.fields.date_ms,
                 my_net: paid - owed,
+                locked: e.locked,
             }
         })
         .collect();

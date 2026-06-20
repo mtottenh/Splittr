@@ -66,6 +66,7 @@ impl From<ExpenseView> for ExpenseViewDto {
             category: e.category,
             date_ms: e.date_ms,
             my_net_cents: e.my_net.0,
+            locked: e.locked,
         }
     }
 }

@@ -112,6 +112,18 @@ impl Engine {
         Ok(())
     }
 
+    pub fn lock_expense(&self, expense_id: String) -> Result<()> {
+        self.lock()
+            .lock_expense(&splittr_app::ExpenseId::new(expense_id))?;
+        Ok(())
+    }
+
+    pub fn unlock_expense(&self, expense_id: String) -> Result<()> {
+        self.lock()
+            .unlock_expense(&splittr_app::ExpenseId::new(expense_id))?;
+        Ok(())
+    }
+
     // --- settlements -------------------------------------------------------
 
     pub fn record_settlement(

@@ -45,6 +45,13 @@ pub enum OpKind {
     VoidExpense {
         expense: ExpenseId,
     },
+    /// Lock/unlock an expense — LWW register (rule 6). Lock is an authorization
+    /// guard (enforced at command time), not a conflict axis: it never changes
+    /// version/void resolution.
+    SetExpenseLock {
+        expense: ExpenseId,
+        locked: bool,
+    },
     RecordSettlement {
         settlement: SettlementId,
         group: GroupId,

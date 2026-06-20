@@ -55,6 +55,7 @@ pub struct ExpenseViewDto {
     pub category: String,
     pub date_ms: i64,
     pub my_net_cents: i64,
+    pub locked: bool,
 }
 
 pub struct TransferDto {

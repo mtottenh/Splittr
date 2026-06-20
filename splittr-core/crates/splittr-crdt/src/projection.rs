@@ -59,6 +59,8 @@ pub struct UserRecord {
 pub struct ExpenseRecord {
     pub group: GroupId,
     pub fields: ExpenseFields,
+    /// Whether the expense is locked against further edits (#15).
+    pub locked: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
