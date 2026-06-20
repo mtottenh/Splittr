@@ -7,7 +7,8 @@ codebase and the roadmap (tracked in GitHub issues, see Epic #18).
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-event-sourced-crdt-core.md) | Event-sourced, CRDT-convergent core data model | Accepted |
-| [0002](0002-networking-transport-rust-iroh.md) | Networking & transport: Rust interop via iroh | Proposed |
+| [0002](0002-networking-transport-rust-iroh.md) | Networking & transport: Rust interop via iroh | Proposed (language split reconsidered by 0003) |
+| [0003](0003-core-language-rust-vs-dart.md) | Core implementation language: Rust-core vs Dart-core | Proposed |
 
 Status values: **Proposed** (recommended, awaiting sign-off) · **Accepted**
 (decided) · **Superseded** (replaced by a later ADR).
