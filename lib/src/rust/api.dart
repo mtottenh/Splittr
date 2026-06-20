@@ -66,6 +66,9 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<void> lockExpense({required String expenseId});
 
+  /// The local user's X25519 agreement public key as hex (#6/#14).
+  Future<String> myAgreementPublic();
+
   Future<String?> myName();
 
   Future<String> myUserId();

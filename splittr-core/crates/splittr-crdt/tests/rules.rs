@@ -292,6 +292,38 @@ fn profile_name_is_lww() {
 }
 
 #[test]
+fn agreement_key_is_published_and_lww() {
+    let profile = op(
+        0,
+        OpKind::UpsertProfile {
+            user: UserId::from("a"),
+            name: "Al".into(),
+        },
+    );
+    let k1 = op(
+        1,
+        OpKind::SetAgreementKey {
+            user: UserId::from("a"),
+            key: [1u8; 32],
+        },
+    );
+    let k2 = op(
+        2,
+        OpKind::SetAgreementKey {
+            user: UserId::from("a"),
+            key: [2u8; 32],
+        },
+    );
+    let p = project(&[k2.clone(), k1.clone(), profile.clone()]);
+    assert_eq!(
+        p.users[&UserId::from("a")].agreement_pub,
+        Some([2u8; 32]),
+        "highest-HLC key wins"
+    );
+    assert_eq!(project(&[profile, k1, k2]), p, "order independent");
+}
+
+#[test]
 fn signed_op_verifies_and_tampering_is_detected() {
     let valid = op(
         0,

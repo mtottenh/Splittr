@@ -52,6 +52,15 @@ impl Engine {
         self.lock().my_name()
     }
 
+    /// The local user's X25519 agreement public key as hex (#6/#14).
+    pub fn my_agreement_public(&self) -> String {
+        self.lock()
+            .my_agreement_public()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    }
+
     pub fn set_my_name(&self, name: String) -> Result<()> {
         self.lock().set_my_name(&name)?;
         Ok(())

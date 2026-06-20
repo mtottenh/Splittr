@@ -127,6 +127,10 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
             user: user(u),
             name: format!("name{n}")
         }),
+        (0u8..4, any::<u8>()).prop_map(|(u, k)| OpKind::SetAgreementKey {
+            user: user(u),
+            key: [k; 32],
+        }),
         (0u8..6, any::<bool>()).prop_map(|(e, locked)| OpKind::SetExpenseLock {
             expense: expense(e),
             locked

@@ -94,6 +94,12 @@ pub enum OpKind {
         user: UserId,
         name: String,
     },
+    /// Publish a user's X25519 agreement public key — LWW (rule 2). Lets peers
+    /// derive a shared secret to encrypt content to them (#6, consumed by #14).
+    SetAgreementKey {
+        user: UserId,
+        key: [u8; 32],
+    },
 }
 
 /// An immutable, content-addressed, signed operation.

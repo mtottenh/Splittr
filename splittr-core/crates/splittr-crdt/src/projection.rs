@@ -58,6 +58,8 @@ pub struct GroupRecord {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct UserRecord {
     pub name: String,
+    /// The user's published X25519 agreement public key, if any (#6/#14).
+    pub agreement_pub: Option<[u8; 32]>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]

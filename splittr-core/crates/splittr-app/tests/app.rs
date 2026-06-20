@@ -317,6 +317,19 @@ fn draft_expense_is_excluded_then_counts_after_publish() {
 }
 
 #[test]
+fn set_my_name_publishes_my_agreement_key() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let published = app.projection().users[&me].agreement_pub;
+    assert_eq!(
+        published,
+        Some(app.my_agreement_public()),
+        "the local user's X25519 key is published and converges (#6)"
+    );
+}
+
+#[test]
 fn group_currency_and_foreign_expense_metadata() {
     let mut app = new_app();
     app.set_my_name("Me").unwrap();

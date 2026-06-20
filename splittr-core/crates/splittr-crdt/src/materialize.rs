@@ -51,6 +51,7 @@ pub struct Materializer {
     group_currency: BTreeMap<GroupId, Stamped<String>>,
     group_closed_until: BTreeMap<GroupId, Stamped<i64>>,
     profiles: BTreeMap<UserId, Stamped<String>>,
+    agreement_keys: BTreeMap<UserId, Stamped<[u8; 32]>>,
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
     expense_group: BTreeMap<ExpenseId, Stamped<Option<GroupId>>>,
     expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
@@ -182,6 +183,9 @@ impl Materializer {
             OpKind::UpsertProfile { user, name } => {
                 lww(&mut self.profiles, user.clone(), stamp(hlc, name.clone()));
             }
+            OpKind::SetAgreementKey { user, key } => {
+                lww(&mut self.agreement_keys, user.clone(), stamp(hlc, *key));
+            }
         }
     }
 
@@ -270,6 +274,7 @@ impl Materializer {
                 id.clone(),
                 UserRecord {
                     name: stamped.value.clone(),
+                    agreement_pub: self.agreement_keys.get(id).map(|s| s.value),
                 },
             );
         }

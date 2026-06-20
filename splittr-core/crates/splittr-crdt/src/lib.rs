@@ -31,7 +31,7 @@ pub use projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord, U
 
 // Re-export the crypto + domain types that appear in this crate's public API so
 // callers (and tests) need only depend on `splittr-crdt`.
-pub use splittr_crypto::{PublicKey, Signature, SigningKey};
+pub use splittr_crypto::{AgreementKey, AgreementPublic, PublicKey, Signature, SigningKey};
 pub use splittr_domain::{
     convert, minor_units, simplify_debts, split_by_weights, split_equal, Cents, ExpenseFields,
     ExpenseId, GroupId, OriginalAmount, SettlementId, Split, SplitError, SplitPlan, Transfer,

@@ -49,7 +49,22 @@ impl<S: OpStore> App<S> {
         self.commit(OpKind::UpsertProfile {
             user,
             name: name.to_string(),
-        })
+        })?;
+        // Publish the X25519 agreement key so peers can encrypt to us (#6/#14).
+        // Content-addressed, so re-emitting the same key is a deduped no-op.
+        self.publish_agreement_key()
+    }
+
+    /// Publish the local user's X25519 agreement public key (#6).
+    pub fn publish_agreement_key(&mut self) -> Result<()> {
+        let user = self.me().clone();
+        let key = self.identity.agreement_public().0;
+        self.commit(OpKind::SetAgreementKey { user, key })
+    }
+
+    /// The local user's X25519 agreement public key (#6/#14).
+    pub fn my_agreement_public(&self) -> [u8; 32] {
+        self.identity.agreement_public().0
     }
 
     /// The local user's display name, if a profile has been set.
