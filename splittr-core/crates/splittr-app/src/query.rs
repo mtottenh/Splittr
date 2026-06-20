@@ -326,6 +326,6 @@ pub fn activity(ops: &[Op], p: &Projection, me: &UserId) -> Vec<ActivityEntry> {
             })
         })
         .collect();
-    entries.sort_by(|a, b| b.wall_ms.cmp(&a.wall_ms));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.wall_ms));
     entries
 }
