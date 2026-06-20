@@ -1,0 +1,14 @@
+[package]
+name = "splittr-crdt"
+version = "0.1.0"
+edition = "2021"
+description = "Event-sourced, CRDT-convergent core: ops, HLC, conflict resolution, projection."
+
+[dependencies]
+splittr-domain = { path = "../splittr-domain" }
+serde = { workspace = true }
+postcard = { workspace = true }
+blake3 = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

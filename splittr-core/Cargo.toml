@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/splittr-domain", "crates/splittr-crdt"]
+
+# Shared dependency versions for the engine workspace. New crates
+# (splittr-crypto, splittr-store, splittr-sync, splittr-app, splittr-ffi) join
+# as the roadmap progresses — see docs/ARCHITECTURE.md §3.
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+# Canonical, compact binary encoding used to hash ops into content-addressed
+# ids (ADR-0001). Deterministic across platforms.
+postcard = { version = "1", features = ["use-std"] }
+blake3 = "1"
+proptest = "1"
+
+[profile.release]
+opt-level = 3
