@@ -158,9 +158,12 @@ to its own crate/repo later to be shared with a relay/CLI.
 ## 9. Build & codegen
 
 - Rust: one Cargo workspace (`Cargo.lock` committed).
-- FFI: `flutter_rust_bridge` codegen (`flutter_rust_bridge_codegen`), built into
-  the Flutter build via `cargokit`/FRB integration; cross-compiled per target
-  (Android NDK ABIs, iOS arm64 + sim, desktop triples, WASM for web).
+- FFI: `flutter_rust_bridge` codegen (`flutter_rust_bridge_codegen`). The native
+  engine is built into the Flutter build per platform: **Linux desktop is wired**
+  — `linux/CMakeLists.txt` runs `cargo build -p splittr-ffi` and installs
+  `libsplittr_ffi.so` into the bundle's `lib/` (loaded via `$ORIGIN/lib` rpath);
+  the bindings `dlopen` it at runtime. Windows/macOS/Android/iOS follow the same
+  pattern (CMake / podspec / Gradle hooks); WASM for web.
 - CI matrix builds the FFI crate per platform and runs `cargo test` (incl.
   proptest) + `flutter test` + `flutter analyze`.
 
@@ -196,7 +199,8 @@ degraded web client is acceptable.
 3. **UI rebind (done):** the Dart domain/state layer is replaced with an
    engine-backed Riverpod facade over the FFI; the screens/widgets/theme are
    retained (#24). The v1 domain models, services and JSON store are deleted.
-   Runtime bundling of the native lib (`cargokit`) is the remaining tail of #23.
+   The Linux desktop build compiles + bundles the engine and runs on it
+   end-to-end; the other platforms' build hooks are the remaining tail of #23.
 4. **Persistence + security:** `splittr-store` + at-rest encryption + app lock
    (#1, #22).
 5. **Identity:** #6, #16.

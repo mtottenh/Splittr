@@ -57,8 +57,33 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+# === splittr-core (Rust) native engine ===
+# Build the FFI cdylib with cargo and bundle it alongside the Flutter library so
+# the generated bindings can dlopen("libsplittr_ffi.so") at runtime (rpath is
+# $ORIGIN/lib, set above). Flutter's build mode maps to the cargo profile.
+set(SPLITTR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../splittr-core")
+set(SPLITTR_CARGO_ARGS build -p splittr-ffi)
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  set(SPLITTR_CARGO_PROFILE_DIR "debug")
+else()
+  list(APPEND SPLITTR_CARGO_ARGS --release)
+  set(SPLITTR_CARGO_PROFILE_DIR "release")
+endif()
+set(SPLITTR_FFI_LIB
+  "${SPLITTR_CORE_DIR}/target/${SPLITTR_CARGO_PROFILE_DIR}/libsplittr_ffi.so")
+
+add_custom_target(splittr_ffi ALL
+  COMMAND cargo ${SPLITTR_CARGO_ARGS}
+  WORKING_DIRECTORY "${SPLITTR_CORE_DIR}"
+  BYPRODUCTS "${SPLITTR_FFI_LIB}"
+  COMMENT "Building splittr-core engine (cargo)"
+  VERBATIM
+  USES_TERMINAL
+)
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+add_dependencies(${BINARY_NAME} splittr_ffi)
 
 # Only the install-generated bundle's copy of the executable will launch
 # correctly, since the resources must in the right relative locations. To avoid
@@ -105,6 +130,11 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endforeach(bundled_library)
+
+# Bundle the Rust engine so the app loads it from $ORIGIN/lib at runtime.
+install(FILES "${SPLITTR_FFI_LIB}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
