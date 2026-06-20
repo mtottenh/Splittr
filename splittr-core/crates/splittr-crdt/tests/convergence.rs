@@ -20,7 +20,7 @@ proptest! {
         prop_assert_eq!(project(&reversed), base.clone());
 
         let mut by_id = ops.clone();
-        by_id.sort_by(|a, b| a.id.cmp(&b.id));
+        by_id.sort_by_key(|a| a.id);
         prop_assert_eq!(project(&by_id), base.clone());
 
         let mut shuffled = ops.clone();
