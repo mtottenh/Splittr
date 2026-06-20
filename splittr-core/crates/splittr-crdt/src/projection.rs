@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
-use splittr_domain::{Cents, ExpenseId, GroupId, SettlementId, Split, UserId};
+use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, UserId};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub struct Projection {
@@ -26,9 +26,7 @@ pub struct GroupRecord {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct ExpenseRecord {
     pub group: GroupId,
-    pub payer: UserId,
-    pub total: Cents,
-    pub splits: Vec<Split>,
+    pub fields: ExpenseFields,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]

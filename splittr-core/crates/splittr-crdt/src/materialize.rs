@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use splittr_domain::{Cents, ExpenseId, GroupId, SettlementId, Split, UserId};
+use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, UserId};
 
 use crate::clock::Hlc;
 use crate::op::{Op, OpId, OpKind};
@@ -33,13 +33,6 @@ fn lww<K: Ord, V>(map: &mut BTreeMap<K, Stamped<V>>, key: K, incoming: Stamped<V
     }
 }
 
-/// The full field-set of one expense version (rule 4: whole-version LWW).
-struct VersionData {
-    payer: UserId,
-    total: Cents,
-    splits: Vec<Split>,
-}
-
 struct SettlementData {
     group: GroupId,
     from: UserId,
@@ -57,7 +50,7 @@ pub struct Materializer {
     group_name: BTreeMap<GroupId, Stamped<String>>,
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
     expense_group: BTreeMap<ExpenseId, Stamped<GroupId>>,
-    expense_version: BTreeMap<ExpenseId, Stamped<VersionData>>,
+    expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
     expense_voided: BTreeSet<ExpenseId>,
     settlements: BTreeMap<SettlementId, Stamped<SettlementData>>,
     settlement_voided: BTreeSet<SettlementId>,
@@ -101,9 +94,7 @@ impl Materializer {
             OpKind::CreateExpense {
                 expense,
                 group,
-                payer,
-                total,
-                splits,
+                fields,
             } => {
                 lww(
                     &mut self.expense_group,
@@ -113,19 +104,14 @@ impl Materializer {
                 lww(
                     &mut self.expense_version,
                     expense.clone(),
-                    stamp(hlc, version(payer, *total, splits)),
+                    stamp(hlc, fields.clone()),
                 );
             }
-            OpKind::EditExpense {
-                expense,
-                payer,
-                total,
-                splits,
-            } => {
+            OpKind::EditExpense { expense, fields } => {
                 lww(
                     &mut self.expense_version,
                     expense.clone(),
-                    stamp(hlc, version(payer, *total, splits)),
+                    stamp(hlc, fields.clone()),
                 );
             }
             OpKind::VoidExpense { expense } => {
@@ -198,9 +184,7 @@ impl Materializer {
                     id.clone(),
                     ExpenseRecord {
                         group: group.value.clone(),
-                        payer: version.value.payer.clone(),
-                        total: version.value.total,
-                        splits: version.value.splits.clone(),
+                        fields: version.value.clone(),
                     },
                 );
             }
@@ -240,14 +224,6 @@ pub fn project(ops: &[Op]) -> Projection {
 
 fn stamp<V>(hlc: Hlc, value: V) -> Stamped<V> {
     Stamped { hlc, value }
-}
-
-fn version(payer: &UserId, total: Cents, splits: &[Split]) -> VersionData {
-    VersionData {
-        payer: payer.clone(),
-        total,
-        splits: splits.to_vec(),
-    }
 }
 
 /// Resolve alias edges to a canonical id per connected component. The canonical

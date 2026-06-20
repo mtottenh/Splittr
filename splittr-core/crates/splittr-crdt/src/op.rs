@@ -1,7 +1,7 @@
 //! Operations — the immutable, content-addressed units of the log.
 
 use serde::{Deserialize, Serialize};
-use splittr_domain::{Cents, ExpenseId, GroupId, SettlementId, Split, UserId};
+use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, UserId};
 
 use crate::clock::Hlc;
 
@@ -36,16 +36,12 @@ pub enum OpKind {
     CreateExpense {
         expense: ExpenseId,
         group: GroupId,
-        payer: UserId,
-        total: Cents,
-        splits: Vec<Split>,
+        fields: ExpenseFields,
     },
     /// A new whole version of an expense — whole-version LWW (rule 4).
     EditExpense {
         expense: ExpenseId,
-        payer: UserId,
-        total: Cents,
-        splits: Vec<Split>,
+        fields: ExpenseFields,
     },
     /// Terminal tombstone — delete wins (rule 5).
     VoidExpense {

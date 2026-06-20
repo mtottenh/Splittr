@@ -49,9 +49,11 @@ fn sample_ops() -> Vec<Op> {
             OpKind::CreateExpense {
                 expense: ExpenseId::from("e0"),
                 group: g.clone(),
-                payer: a.clone(),
-                total: Cents(1000),
-                splits: split_equal(Cents(1000), &[a.clone(), b.clone()]),
+                fields: ExpenseFields::single_payer(
+                    a.clone(),
+                    Cents(1000),
+                    split_equal(Cents(1000), &[a.clone(), b.clone()]),
+                ),
             },
         ),
         op(
@@ -128,9 +130,11 @@ fn arb_ops() -> impl Strategy<Value = Vec<Op>> {
             OpKind::CreateExpense {
                 expense: ExpenseId::new(format!("e{e}")),
                 group: GroupId::new(format!("g{g}")),
-                payer: payer.clone(),
-                total: Cents(t),
-                splits: split_equal(Cents(t), &[payer]),
+                fields: ExpenseFields::single_payer(
+                    payer.clone(),
+                    Cents(t),
+                    split_equal(Cents(t), &[payer]),
+                ),
             }
         }),
         (0u8..5).prop_map(|e| OpKind::VoidExpense {

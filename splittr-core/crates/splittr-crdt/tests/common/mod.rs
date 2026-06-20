@@ -3,6 +3,8 @@
 
 #![allow(dead_code)] // not every test binary uses every helper
 
+use std::collections::BTreeMap;
+
 use proptest::prelude::*;
 use splittr_crdt::*;
 
@@ -38,6 +40,17 @@ fn valid_splits(total: i64, mask: &[bool]) -> Vec<Split> {
     split_equal(Cents(total), &participants(mask))
 }
 
+/// A balanced expense version: payments and splits both sum to `total`, with
+/// payments distributed across the masked payers (so multi-payer is exercised).
+fn fields(total: i64, payer_mask: &[bool], split_mask: &[bool]) -> ExpenseFields {
+    let payers = participants(payer_mask);
+    let paid_by: BTreeMap<UserId, Cents> = split_equal(Cents(total), &payers)
+        .into_iter()
+        .map(|s| (s.user, s.owed))
+        .collect();
+    ExpenseFields::new(paid_by, Cents(total), valid_splits(total, split_mask))
+}
+
 pub fn op_kind() -> impl Strategy<Value = OpKind> {
     prop_oneof![
         (0u8..2).prop_map(|g| OpKind::CreateGroup {
@@ -56,28 +69,26 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
         (
             0u8..6,
             0u8..2,
-            0u8..4,
+            prop::collection::vec(any::<bool>(), 4..=4),
             prop::collection::vec(any::<bool>(), 4..=4),
             1i64..100_000
         )
-            .prop_map(|(e, g, payer, mask, total)| OpKind::CreateExpense {
-                expense: expense(e),
-                group: group(g),
-                payer: user(payer),
-                total: Cents(total),
-                splits: valid_splits(total, &mask),
-            }),
+            .prop_map(
+                |(e, g, payer_mask, split_mask, total)| OpKind::CreateExpense {
+                    expense: expense(e),
+                    group: group(g),
+                    fields: fields(total, &payer_mask, &split_mask),
+                }
+            ),
         (
             0u8..6,
-            0u8..4,
+            prop::collection::vec(any::<bool>(), 4..=4),
             prop::collection::vec(any::<bool>(), 4..=4),
             1i64..100_000
         )
-            .prop_map(|(e, payer, mask, total)| OpKind::EditExpense {
+            .prop_map(|(e, payer_mask, split_mask, total)| OpKind::EditExpense {
                 expense: expense(e),
-                payer: user(payer),
-                total: Cents(total),
-                splits: valid_splits(total, &mask),
+                fields: fields(total, &payer_mask, &split_mask),
             }),
         (0u8..6).prop_map(|e| OpKind::VoidExpense {
             expense: expense(e)

@@ -1,8 +1,10 @@
-//! Targeted, example-based tests for each ADR-0001 conflict rule. These pin the
-//! exact semantics that the property tests exercise more broadly.
+//! Targeted, example-based tests for each ADR-0001 conflict rule and the
+//! balance/settle-up behaviour. These pin the exact semantics that the property
+//! tests exercise more broadly.
+
+use std::collections::BTreeMap;
 
 use splittr_crdt::*;
-use splittr_domain::{split_equal, Cents, ExpenseId, GroupId, Split, UserId};
 
 fn op(counter: u32, kind: OpKind) -> Op {
     Op::new(
@@ -16,8 +18,13 @@ fn op(counter: u32, kind: OpKind) -> Op {
     )
 }
 
-fn split_two(total: i64, a: &str, b: &str) -> Vec<Split> {
-    split_equal(Cents(total), &[UserId::from(a), UserId::from(b)])
+fn split(total: i64, users: &[&str]) -> Vec<Split> {
+    let users: Vec<UserId> = users.iter().map(|u| UserId::from(*u)).collect();
+    split_equal(Cents(total), &users)
+}
+
+fn single_payer(payer: &str, total: i64, users: &[&str]) -> ExpenseFields {
+    ExpenseFields::single_payer(UserId::from(payer), Cents(total), split(total, users))
 }
 
 #[test]
@@ -25,9 +32,7 @@ fn delete_wins_and_is_terminal_regardless_of_order_or_hlc() {
     let create = OpKind::CreateExpense {
         expense: ExpenseId::from("e0"),
         group: GroupId::from("g0"),
-        payer: UserId::from("a"),
-        total: Cents(1000),
-        splits: split_two(1000, "a", "b"),
+        fields: single_payer("a", 1000, &["a", "b"]),
     };
     // Void has a *lower* HLC than create, yet delete still wins (terminal).
     let create_op = op(5, create);
@@ -55,40 +60,34 @@ fn expense_edit_is_whole_version_lww() {
         OpKind::CreateExpense {
             expense: ExpenseId::from("e0"),
             group: GroupId::from("g0"),
-            payer: UserId::from("a"),
-            total: Cents(1000),
-            splits: split_two(1000, "a", "b"),
+            fields: single_payer("a", 1000, &["a", "b"]),
         },
     );
     let higher = op(
         5,
         OpKind::EditExpense {
             expense: ExpenseId::from("e0"),
-            payer: UserId::from("a"),
-            total: Cents(2000),
-            splits: split_two(2000, "a", "b"),
+            fields: single_payer("a", 2000, &["a", "b"]),
         },
     );
     let lower = op(
         0,
         OpKind::EditExpense {
             expense: ExpenseId::from("e0"),
-            payer: UserId::from("a"),
-            total: Cents(9999),
-            splits: split_two(9999, "a", "b"),
+            fields: single_payer("a", 9999, &["a", "b"]),
         },
     );
 
     let with_higher = project(&[create.clone(), higher]);
     assert_eq!(
-        with_higher.expenses[&ExpenseId::from("e0")].total,
+        with_higher.expenses[&ExpenseId::from("e0")].fields.total,
         Cents(2000),
         "highest-HLC version wins"
     );
 
     let with_lower = project(&[create, lower]);
     assert_eq!(
-        with_lower.expenses[&ExpenseId::from("e0")].total,
+        with_lower.expenses[&ExpenseId::from("e0")].fields.total,
         Cents(1000),
         "a lower-HLC edit loses to the create"
     );
@@ -138,9 +137,7 @@ fn alias_merge_preserves_balances_with_zero_change() {
     let expense = OpKind::CreateExpense {
         expense: ExpenseId::from("e0"),
         group: GroupId::from("g0"),
-        payer: UserId::from("a"),
-        total: Cents(1000),
-        splits: split_two(1000, "a", "b"),
+        fields: single_payer("a", 1000, &["a", "b"]),
     };
 
     let before = net_balances(&project(&[op(0, expense.clone())]));
@@ -166,7 +163,7 @@ fn settlement_void_removes_it() {
     let record = op(
         0,
         OpKind::RecordSettlement {
-            settlement: splittr_domain::SettlementId::from("s0"),
+            settlement: SettlementId::from("s0"),
             group: GroupId::from("g0"),
             from: UserId::from("b"),
             to: UserId::from("a"),
@@ -176,10 +173,49 @@ fn settlement_void_removes_it() {
     let void = op(
         1,
         OpKind::VoidSettlement {
-            settlement: splittr_domain::SettlementId::from("s0"),
+            settlement: SettlementId::from("s0"),
         },
     );
     let p = project(&[record, void]);
     assert!(p.settlements.is_empty());
     assert!(net_balances(&p).is_empty());
+}
+
+#[test]
+fn multiple_payers_are_credited_correctly() {
+    // a and b both pay (700 / 300) for a 10.00 expense split equally between them.
+    let mut paid_by = BTreeMap::new();
+    paid_by.insert(UserId::from("a"), Cents(700));
+    paid_by.insert(UserId::from("b"), Cents(300));
+    let fields = ExpenseFields::new(paid_by, Cents(1000), split(1000, &["a", "b"]));
+
+    let net = net_balances(&project(&[op(
+        0,
+        OpKind::CreateExpense {
+            expense: ExpenseId::from("e0"),
+            group: GroupId::from("g0"),
+            fields,
+        },
+    )]));
+
+    assert_eq!(net.get(&UserId::from("a")), Some(&Cents(200))); // paid 700, owes 500
+    assert_eq!(net.get(&UserId::from("b")), Some(&Cents(-200))); // paid 300, owes 500
+}
+
+#[test]
+fn settle_up_suggests_minimal_payments() {
+    // a pays 9.00 split equally three ways → a is owed 6.00; b and c owe 3.00 each.
+    let p = project(&[op(
+        0,
+        OpKind::CreateExpense {
+            expense: ExpenseId::from("e0"),
+            group: GroupId::from("g0"),
+            fields: single_payer("a", 900, &["a", "b", "c"]),
+        },
+    )]);
+
+    let transfers = settle_up(&p);
+    assert_eq!(transfers.len(), 2, "both debtors pay the single creditor");
+    assert!(transfers.iter().all(|t| t.to == UserId::from("a")));
+    assert_eq!(transfers.iter().map(|t| t.amount.0).sum::<i64>(), 600);
 }
