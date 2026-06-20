@@ -91,17 +91,46 @@ impl Engine {
         let group = GroupId::new(input.group_id);
         let paid_by = to_paid_by(input.paid_by);
         let plan = to_split_plan(input.split);
-        let id = self.lock().add_expense(
-            &group,
-            &input.description,
-            paid_by,
-            Cents(input.total_cents),
-            plan,
-            &input.category,
-            input.notes,
-            input.date_ms,
-        )?;
+        let mut app = self.lock();
+        let id = if input.draft {
+            app.add_draft_expense(
+                &group,
+                &input.description,
+                paid_by,
+                Cents(input.total_cents),
+                plan,
+                &input.category,
+                input.notes,
+                input.date_ms,
+            )?
+        } else {
+            app.add_expense(
+                &group,
+                &input.description,
+                paid_by,
+                Cents(input.total_cents),
+                plan,
+                &input.category,
+                input.notes,
+                input.date_ms,
+            )?
+        };
         Ok(id.0)
+    }
+
+    /// Publish a draft expense so it counts toward balances (#15).
+    pub fn publish_expense(&self, expense_id: String) -> Result<()> {
+        self.lock()
+            .publish_expense(&splittr_app::ExpenseId::new(expense_id))?;
+        Ok(())
+    }
+
+    /// Close a group's accounting period (#15): expenses dated at or before
+    /// `until_ms` become uneditable. Pass `0` to reopen.
+    pub fn set_closed_period(&self, group_id: String, until_ms: i64) -> Result<()> {
+        self.lock()
+            .set_closed_period(&GroupId::new(group_id), until_ms)?;
+        Ok(())
     }
 
     /// Replace an expense with a new version. `input.group_id` is ignored (an

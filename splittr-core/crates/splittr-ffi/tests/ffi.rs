@@ -42,6 +42,7 @@ fn engine_runs_the_core_flow() {
             category: "travel".into(),
             notes: None,
             date_ms: 0,
+            draft: false,
         })
         .unwrap();
 
@@ -63,6 +64,57 @@ fn engine_runs_the_core_flow() {
     assert!(engine.group_detail(group).unwrap().settle_up.is_empty());
 
     assert_eq!(engine.groups().len(), 1);
+}
+
+#[test]
+fn draft_publish_and_closed_period_through_the_ffi() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), db_key(), 1).unwrap();
+    engine.set_my_name("Me".into()).unwrap();
+    let me = engine.my_user_id();
+    let bob = engine.add_person("Bob".into()).unwrap();
+    let group = engine
+        .create_group("Trip".into(), vec![bob.clone()])
+        .unwrap();
+
+    let input = |draft: bool, date_ms: i64| ExpenseInput {
+        group_id: group.clone(),
+        description: "Dinner".into(),
+        paid_by: vec![Payer {
+            user_id: me.clone(),
+            cents: 2000,
+        }],
+        total_cents: 2000,
+        split: SplitPlanDto::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        category: "food".into(),
+        notes: None,
+        date_ms,
+        draft,
+    };
+
+    // A draft is in the ledger but doesn't move balances.
+    let expense = engine.add_expense(input(true, 100)).unwrap();
+    let detail = engine.group_detail(group.clone()).unwrap();
+    assert!(!detail.expenses[0].published);
+    assert!(detail.settle_up.is_empty());
+
+    // Publishing makes it count.
+    engine.publish_expense(expense.clone()).unwrap();
+    let detail = engine.group_detail(group.clone()).unwrap();
+    assert!(detail.expenses[0].published);
+    assert_eq!(detail.settle_up.len(), 1);
+
+    // Closing the period freezes it against edits.
+    engine.set_closed_period(group.clone(), 200).unwrap();
+    assert!(engine
+        .edit_expense(expense.clone(), input(false, 100))
+        .is_err());
+
+    // Reopening lets edits through again.
+    engine.set_closed_period(group.clone(), 0).unwrap();
+    assert!(engine.edit_expense(expense, input(false, 100)).is_ok());
 }
 
 #[test]

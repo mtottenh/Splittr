@@ -121,6 +121,59 @@ impl<S: OpStore> App<S> {
         notes: Option<String>,
         date_ms: i64,
     ) -> Result<ExpenseId> {
+        self.create_expense(
+            group,
+            description,
+            paid_by,
+            total,
+            split,
+            category,
+            notes,
+            date_ms,
+            false,
+        )
+    }
+
+    /// Add a private draft expense (excluded from balances until published, #15).
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_draft_expense(
+        &mut self,
+        group: &GroupId,
+        description: &str,
+        paid_by: BTreeMap<UserId, Cents>,
+        total: Cents,
+        split: SplitPlan,
+        category: &str,
+        notes: Option<String>,
+        date_ms: i64,
+    ) -> Result<ExpenseId> {
+        self.create_expense(
+            group,
+            description,
+            paid_by,
+            total,
+            split,
+            category,
+            notes,
+            date_ms,
+            true,
+        )
+    }
+
+    /// Shared create path for active and draft expenses (one implementation).
+    #[allow(clippy::too_many_arguments)]
+    fn create_expense(
+        &mut self,
+        group: &GroupId,
+        description: &str,
+        paid_by: BTreeMap<UserId, Cents>,
+        total: Cents,
+        split: SplitPlan,
+        category: &str,
+        notes: Option<String>,
+        date_ms: i64,
+        draft: bool,
+    ) -> Result<ExpenseId> {
         self.require_member(group)?;
         let fields = build_fields(description, paid_by, total, split, category, notes, date_ms)?;
         let expense = ExpenseId::new(format!("expense:{}", Uuid::new_v4()));
@@ -128,6 +181,7 @@ impl<S: OpStore> App<S> {
             expense: expense.clone(),
             group: group.clone(),
             fields,
+            draft,
         })?;
         Ok(expense)
     }
@@ -145,7 +199,7 @@ impl<S: OpStore> App<S> {
         notes: Option<String>,
         date_ms: i64,
     ) -> Result<()> {
-        self.require_unlocked(expense)?;
+        self.require_editable(expense)?;
         let fields = build_fields(description, paid_by, total, split, category, notes, date_ms)?;
         self.commit(OpKind::EditExpense {
             expense: expense.clone(),
@@ -154,8 +208,18 @@ impl<S: OpStore> App<S> {
     }
 
     pub fn delete_expense(&mut self, expense: &ExpenseId) -> Result<()> {
-        self.require_unlocked(expense)?;
+        self.require_editable(expense)?;
         self.commit(OpKind::VoidExpense {
+            expense: expense.clone(),
+        })
+    }
+
+    /// Publish a draft expense so it counts toward balances (#15).
+    pub fn publish_expense(&mut self, expense: &ExpenseId) -> Result<()> {
+        if !self.repo.projection().expenses.contains_key(expense) {
+            return Err(AppError::NotFound(format!("expense {expense}")));
+        }
+        self.commit(OpKind::PublishExpense {
             expense: expense.clone(),
         })
     }
@@ -168,6 +232,16 @@ impl<S: OpStore> App<S> {
     /// Unlock a previously locked expense.
     pub fn unlock_expense(&mut self, expense: &ExpenseId) -> Result<()> {
         self.set_expense_lock(expense, false)
+    }
+
+    /// Close a group's accounting period: expenses dated at or before `until_ms`
+    /// become uneditable (#15). Lowering it again reopens the period.
+    pub fn set_closed_period(&mut self, group: &GroupId, until_ms: i64) -> Result<()> {
+        self.require_member(group)?;
+        self.commit(OpKind::SetClosedPeriod {
+            group: group.clone(),
+            until_ms,
+        })
     }
 
     // --- settlements -------------------------------------------------------
@@ -258,13 +332,26 @@ impl<S: OpStore> App<S> {
         }
     }
 
-    /// The expense must exist and not be locked.
-    fn require_unlocked(&self, expense: &ExpenseId) -> Result<()> {
-        match self.repo.projection().expenses.get(expense) {
-            None => Err(AppError::NotFound(format!("expense {expense}"))),
-            Some(rec) if rec.locked => Err(AppError::Validation("expense is locked".into())),
-            Some(_) => Ok(()),
+    /// The expense must exist, not be locked, and not fall in a closed period
+    /// (#15). The single guard for edit/delete.
+    fn require_editable(&self, expense: &ExpenseId) -> Result<()> {
+        let projection = self.repo.projection();
+        let rec = projection
+            .expenses
+            .get(expense)
+            .ok_or_else(|| AppError::NotFound(format!("expense {expense}")))?;
+        if rec.locked {
+            return Err(AppError::Validation("expense is locked".into()));
         }
+        let closed_until = projection
+            .groups
+            .get(&rec.group)
+            .map(|g| g.closed_until_ms)
+            .unwrap_or(0);
+        if closed_until > 0 && rec.fields.date_ms <= closed_until {
+            return Err(AppError::Validation("expense is in a closed period".into()));
+        }
+        Ok(())
     }
 
     fn set_expense_lock(&mut self, expense: &ExpenseId, locked: bool) -> Result<()> {

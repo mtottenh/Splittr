@@ -47,6 +47,7 @@ void main() {
         split: SplitPlanDto.equal(participants: [me, bob]),
         category: 'travel',
         dateMs: 0,
+        draft: false,
       ),
     );
 
@@ -95,6 +96,7 @@ void main() {
         split: SplitPlanDto.equal(participants: [me, bob]),
         category: 'travel',
         dateMs: 0,
+        draft: false,
       ),
     );
 
@@ -132,5 +134,56 @@ void main() {
     final after = await engine.friends();
     expect(after.firstWhere((f) => f.userId == bob).netCents, 0);
     expect((await engine.groupDetail(groupId: group))!.settlements, hasLength(1));
+  });
+
+  test('draft, publish and closed-period flow through the FFI', () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_lc');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: List.filled(32, 5),
+      dbKey: List.filled(32, 17),
+      site: BigInt.from(3),
+    );
+    await engine.setMyName(name: 'Me');
+    final me = await engine.myUserId();
+    final bob = await engine.addPerson(name: 'Bob');
+    final group = await engine.createGroup(name: 'Trip', memberIds: [bob]);
+
+    ExpenseInput input({required bool draft, required int dateMs}) => ExpenseInput(
+          groupId: group,
+          description: 'Dinner',
+          paidBy: [Payer(userId: me, cents: 2000)],
+          totalCents: 2000,
+          split: SplitPlanDto.equal(participants: [me, bob]),
+          category: 'food',
+          dateMs: dateMs,
+          draft: draft,
+        );
+
+    // A draft is in the ledger but does not move balances.
+    final expense = await engine.addExpense(input: input(draft: true, dateMs: 100));
+    var detail = (await engine.groupDetail(groupId: group))!;
+    expect(detail.expenses.single.published, isFalse);
+    expect(detail.settleUp, isEmpty);
+
+    // Publishing makes it count.
+    await engine.publishExpense(expenseId: expense);
+    detail = (await engine.groupDetail(groupId: group))!;
+    expect(detail.expenses.single.published, isTrue);
+    expect(detail.settleUp, hasLength(1));
+
+    // Closing the period freezes edits; reopening unfreezes them.
+    await engine.setClosedPeriod(groupId: group, untilMs: 200);
+    await expectLater(
+      engine.editExpense(expenseId: expense, input: input(draft: false, dateMs: 100)),
+      throwsA(anything),
+    );
+    await engine.setClosedPeriod(groupId: group, untilMs: 0);
+    await engine.editExpense(
+      expenseId: expense,
+      input: input(draft: false, dateMs: 100),
+    );
   });
 }

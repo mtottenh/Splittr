@@ -16,6 +16,9 @@ pub fn net_balances(p: &Projection) -> BTreeMap<UserId, Cents> {
     let mut net: BTreeMap<UserId, Cents> = BTreeMap::new();
 
     for e in p.expenses.values() {
+        if !e.published {
+            continue; // drafts don't affect balances (#15)
+        }
         for (payer, paid) in &e.fields.paid_by {
             *net.entry(resolve(payer)).or_default() += *paid;
         }
@@ -51,6 +54,9 @@ pub fn pairwise_with(p: &Projection, me: &UserId) -> BTreeMap<UserId, Cents> {
     let mut owed: BTreeMap<UserId, Cents> = BTreeMap::new();
 
     for e in p.expenses.values() {
+        if !e.published {
+            continue; // drafts don't affect balances (#15)
+        }
         let mut net: BTreeMap<UserId, Cents> = BTreeMap::new();
         for (payer, paid) in &e.fields.paid_by {
             *net.entry(resolve(payer)).or_default() += *paid;
@@ -111,6 +117,7 @@ mod tests {
             GroupRecord {
                 name: "g".into(),
                 members: members.iter().map(|m| uid(m)).collect::<BTreeSet<_>>(),
+                closed_until_ms: 0,
             },
         );
         for (i, e) in expenses.into_iter().enumerate() {
@@ -138,6 +145,7 @@ mod tests {
             group: GroupId::new("g"),
             fields: ExpenseFields::new(paid, total, splits),
             locked: false,
+            published: true,
         }
     }
 

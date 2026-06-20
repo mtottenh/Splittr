@@ -76,15 +76,17 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
             0u8..2,
             prop::collection::vec(any::<bool>(), 4..=4),
             prop::collection::vec(any::<bool>(), 4..=4),
-            1i64..100_000
+            1i64..100_000,
+            any::<bool>(),
         )
-            .prop_map(
-                |(e, g, payer_mask, split_mask, total)| OpKind::CreateExpense {
+            .prop_map(|(e, g, payer_mask, split_mask, total, draft)| {
+                OpKind::CreateExpense {
                     expense: expense(e),
                     group: group(g),
                     fields: fields(total, &payer_mask, &split_mask),
+                    draft,
                 }
-            ),
+            }),
         (
             0u8..6,
             prop::collection::vec(any::<bool>(), 4..=4),
@@ -95,8 +97,15 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
                 expense: expense(e),
                 fields: fields(total, &payer_mask, &split_mask),
             }),
+        (0u8..6).prop_map(|e| OpKind::PublishExpense {
+            expense: expense(e)
+        }),
         (0u8..6).prop_map(|e| OpKind::VoidExpense {
             expense: expense(e)
+        }),
+        (0u8..2, 0i64..100).prop_map(|(g, until)| OpKind::SetClosedPeriod {
+            group: group(g),
+            until_ms: until,
         }),
         (0u8..4, 0u8..2, 0u8..4, 0u8..4, 1i64..100_000).prop_map(|(s, g, from, to, amount)| {
             OpKind::RecordSettlement {

@@ -45,6 +45,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   String _payerId = '';
   SplitMode _splitMode = SplitMode.equal;
   DateTime _date = DateTime.now();
+  bool _draft = false;
   final Set<String> _participants = {};
 
   bool get _isEditing => widget.existing != null;
@@ -131,6 +132,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       split: _buildPlan(totalCents),
       category: _categoryId,
       dateMs: _date.millisecondsSinceEpoch,
+      draft: _isEditing ? false : _draft,
     );
 
     final notifier = ref.read(appProvider.notifier);
@@ -161,8 +163,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit expense' : 'Add expense'),
         actions: [
+          if (_isEditing && !widget.existing!.published)
+            IconButton(
+              tooltip: 'Publish',
+              icon: const Icon(Icons.publish_outlined),
+              onPressed: () async {
+                await ref
+                    .read(appProvider.notifier)
+                    .publishExpense(widget.existing!.id);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
           if (_isEditing)
             IconButton(
+              tooltip: 'Delete',
               icon: const Icon(Icons.delete_outline),
               onPressed: () async {
                 await ref
@@ -250,6 +264,17 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             ..._participantRows(),
+            if (!_isEditing) ...[
+              const Divider(height: 24),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _draft,
+                onChanged: (v) => setState(() => _draft = v ?? false),
+                title: const Text('Save as draft'),
+                subtitle:
+                    const Text("Keep private; doesn't count until published"),
+              ),
+            ],
             const SizedBox(height: 80),
           ],
         ),

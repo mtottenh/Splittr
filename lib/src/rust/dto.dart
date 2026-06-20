@@ -45,6 +45,9 @@ class ExpenseInput {
   final String? notes;
   final PlatformInt64 dateMs;
 
+  /// Create as a private draft (ignored when editing). See #15.
+  final bool draft;
+
   const ExpenseInput({
     required this.groupId,
     required this.description,
@@ -54,6 +57,7 @@ class ExpenseInput {
     required this.category,
     this.notes,
     required this.dateMs,
+    required this.draft,
   });
 
   @override
@@ -65,7 +69,8 @@ class ExpenseInput {
       split.hashCode ^
       category.hashCode ^
       notes.hashCode ^
-      dateMs.hashCode;
+      dateMs.hashCode ^
+      draft.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -79,7 +84,8 @@ class ExpenseInput {
           split == other.split &&
           category == other.category &&
           notes == other.notes &&
-          dateMs == other.dateMs;
+          dateMs == other.dateMs &&
+          draft == other.draft;
 }
 
 class ExpenseViewDto {
@@ -93,6 +99,9 @@ class ExpenseViewDto {
   final String? notes;
   final PlatformInt64 myNetCents;
   final bool locked;
+
+  /// `false` while the expense is a draft (not counted in balances). See #15.
+  final bool published;
   final List<MemberAmountDto> paidBy;
   final List<MemberAmountDto> splits;
 
@@ -107,6 +116,7 @@ class ExpenseViewDto {
     this.notes,
     required this.myNetCents,
     required this.locked,
+    required this.published,
     required this.paidBy,
     required this.splits,
   });
@@ -123,6 +133,7 @@ class ExpenseViewDto {
       notes.hashCode ^
       myNetCents.hashCode ^
       locked.hashCode ^
+      published.hashCode ^
       paidBy.hashCode ^
       splits.hashCode;
 
@@ -141,6 +152,7 @@ class ExpenseViewDto {
           notes == other.notes &&
           myNetCents == other.myNetCents &&
           locked == other.locked &&
+          published == other.published &&
           paidBy == other.paidBy &&
           splits == other.splits;
 }

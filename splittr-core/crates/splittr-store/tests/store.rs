@@ -58,6 +58,7 @@ fn sample_ops() -> Vec<Op> {
                     Cents(1000),
                     split_equal(Cents(1000), &[a.clone(), b.clone()]),
                 ),
+                draft: false,
             },
         ),
         op(
@@ -209,6 +210,7 @@ fn arb_ops() -> impl Strategy<Value = Vec<Op>> {
                     Cents(t),
                     split_equal(Cents(t), &[payer]),
                 ),
+                draft: false,
             }
         }),
         (0u8..5).prop_map(|e| OpKind::VoidExpense {

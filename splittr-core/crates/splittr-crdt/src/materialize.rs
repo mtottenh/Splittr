@@ -48,11 +48,15 @@ pub struct Materializer {
     seen: BTreeSet<OpId>,
     group_created: BTreeSet<GroupId>,
     group_name: BTreeMap<GroupId, Stamped<String>>,
+    group_closed_until: BTreeMap<GroupId, Stamped<i64>>,
     profiles: BTreeMap<UserId, Stamped<String>>,
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
     expense_group: BTreeMap<ExpenseId, Stamped<GroupId>>,
     expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
     expense_locked: BTreeMap<ExpenseId, Stamped<bool>>,
+    /// Grow-only set: an expense is published once any publish signal arrives
+    /// (an active create or a `PublishExpense`). Order-independent.
+    expense_published: BTreeSet<ExpenseId>,
     expense_voided: BTreeSet<ExpenseId>,
     settlements: BTreeMap<SettlementId, Stamped<SettlementData>>,
     settlement_voided: BTreeSet<SettlementId>,
@@ -97,6 +101,7 @@ impl Materializer {
                 expense,
                 group,
                 fields,
+                draft,
             } => {
                 lww(
                     &mut self.expense_group,
@@ -108,6 +113,9 @@ impl Materializer {
                     expense.clone(),
                     stamp(hlc, fields.clone()),
                 );
+                if !draft {
+                    self.expense_published.insert(expense.clone());
+                }
             }
             OpKind::EditExpense { expense, fields } => {
                 lww(
@@ -116,8 +124,18 @@ impl Materializer {
                     stamp(hlc, fields.clone()),
                 );
             }
+            OpKind::PublishExpense { expense } => {
+                self.expense_published.insert(expense.clone());
+            }
             OpKind::VoidExpense { expense } => {
                 self.expense_voided.insert(expense.clone());
+            }
+            OpKind::SetClosedPeriod { group, until_ms } => {
+                lww(
+                    &mut self.group_closed_until,
+                    group.clone(),
+                    stamp(hlc, *until_ms),
+                );
             }
             OpKind::SetExpenseLock { expense, locked } => {
                 lww(
@@ -183,7 +201,15 @@ impl Materializer {
                     members.insert(uid.clone());
                 }
             }
-            groups.insert(g.clone(), GroupRecord { name, members });
+            let closed_until_ms = self.group_closed_until.get(g).map(|s| s.value).unwrap_or(0);
+            groups.insert(
+                g.clone(),
+                GroupRecord {
+                    name,
+                    members,
+                    closed_until_ms,
+                },
+            );
         }
 
         let mut expenses = BTreeMap::new();
@@ -202,6 +228,7 @@ impl Materializer {
                             .get(id)
                             .map(|s| s.value)
                             .unwrap_or(false),
+                        published: self.expense_published.contains(id),
                     },
                 );
             }

@@ -35,11 +35,18 @@ pub enum OpKind {
         expense: ExpenseId,
         group: GroupId,
         fields: ExpenseFields,
+        /// Created as a private draft — excluded from balances until published.
+        draft: bool,
     },
     /// A new whole version of an expense — whole-version LWW (rule 4).
     EditExpense {
         expense: ExpenseId,
         fields: ExpenseFields,
+    },
+    /// Publish a draft expense so it counts toward balances. Monotonic
+    /// (publish-wins), like a positive tombstone — order-independent.
+    PublishExpense {
+        expense: ExpenseId,
     },
     /// Terminal tombstone — delete wins (rule 5).
     VoidExpense {
@@ -51,6 +58,13 @@ pub enum OpKind {
     SetExpenseLock {
         expense: ExpenseId,
         locked: bool,
+    },
+    /// Close a group's accounting period: expenses dated at or before `until_ms`
+    /// can no longer be edited/deleted. LWW register — lowering it is a
+    /// privileged reopen.
+    SetClosedPeriod {
+        group: GroupId,
+        until_ms: i64,
     },
     RecordSettlement {
         settlement: SettlementId,

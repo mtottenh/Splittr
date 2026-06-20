@@ -266,3 +266,109 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
         "Hotel!"
     );
 }
+
+#[test]
+fn draft_expense_is_excluded_then_counts_after_publish() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+
+    let expense = app
+        .add_draft_expense(
+            &group,
+            "Maybe dinner",
+            paid(&me, 4000),
+            Cents(4000),
+            SplitPlan::Equal {
+                participants: vec![me.clone(), bob.clone()],
+            },
+            "food",
+            None,
+            0,
+        )
+        .unwrap();
+
+    // The draft shows in the ledger but doesn't move balances.
+    let detail = app.group_detail(&group).unwrap();
+    assert_eq!(detail.expenses.len(), 1);
+    assert!(!detail.expenses[0].published);
+    assert!(detail.members.iter().all(|m| m.net == Cents(0)));
+    assert!(detail.settle_up.is_empty());
+
+    // Publishing makes it count.
+    app.publish_expense(&expense).unwrap();
+    let detail = app.group_detail(&group).unwrap();
+    assert!(detail.expenses[0].published);
+    let my_net = detail.members.iter().find(|m| m.user == me).unwrap().net;
+    assert_eq!(my_net, Cents(2000));
+}
+
+#[test]
+fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
+    let mut app = new_app();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+
+    // An expense dated at t=100.
+    let expense = app
+        .add_expense(
+            &group,
+            "Old dinner",
+            paid(&me, 1000),
+            Cents(1000),
+            SplitPlan::Equal {
+                participants: vec![me.clone(), bob.clone()],
+            },
+            "food",
+            None,
+            100,
+        )
+        .unwrap();
+
+    // Close the period up to t=200: the expense is now frozen.
+    app.set_closed_period(&group, 200).unwrap();
+    let edit = app.edit_expense(
+        &expense,
+        "Renamed",
+        paid(&me, 1000),
+        Cents(1000),
+        SplitPlan::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        "food",
+        None,
+        100,
+    );
+    assert!(matches!(edit, Err(AppError::Validation(_))));
+    assert!(matches!(
+        app.delete_expense(&expense),
+        Err(AppError::Validation(_))
+    ));
+
+    // Reopening the period (lower watermark) re-enables edits.
+    app.set_closed_period(&group, 0).unwrap();
+    app.edit_expense(
+        &expense,
+        "Renamed",
+        paid(&me, 1000),
+        Cents(1000),
+        SplitPlan::Equal {
+            participants: vec![me, bob],
+        },
+        "food",
+        None,
+        100,
+    )
+    .unwrap();
+    assert_eq!(
+        app.group_detail(&group).unwrap().expenses[0].description,
+        "Renamed"
+    );
+}

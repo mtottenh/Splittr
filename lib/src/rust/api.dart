@@ -67,6 +67,9 @@ abstract class Engine implements RustOpaqueInterface {
     site: site,
   );
 
+  /// Publish a draft expense so it counts toward balances (#15).
+  Future<void> publishExpense({required String expenseId});
+
   Future<String> recordSettlement({
     required String groupId,
     required String from,
@@ -77,6 +80,13 @@ abstract class Engine implements RustOpaqueInterface {
   Future<void> removeMember({required String groupId, required String userId});
 
   Future<void> renameGroup({required String groupId, required String name});
+
+  /// Close a group's accounting period (#15): expenses dated at or before
+  /// `until_ms` become uneditable. Pass `0` to reopen.
+  Future<void> setClosedPeriod({
+    required String groupId,
+    required PlatformInt64 untilMs,
+  });
 
   Future<void> setMyName({required String name});
 

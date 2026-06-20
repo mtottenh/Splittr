@@ -82,6 +82,7 @@ impl From<ExpenseView> for ExpenseViewDto {
             notes: e.notes,
             my_net_cents: e.my_net.0,
             locked: e.locked,
+            published: e.published,
             paid_by: e.paid_by.into_iter().map(Into::into).collect(),
             splits: e.splits.into_iter().map(Into::into).collect(),
         }

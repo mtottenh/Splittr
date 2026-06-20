@@ -37,6 +37,7 @@ fn delete_wins_and_is_terminal_regardless_of_order_or_hlc() {
         expense: ExpenseId::from("e0"),
         group: GroupId::from("g0"),
         fields: single_payer("a", 1000, &["a", "b"]),
+        draft: false,
     };
     // Void has a *lower* HLC than create, yet delete still wins (terminal).
     let create_op = op(5, create);
@@ -65,6 +66,7 @@ fn expense_edit_is_whole_version_lww() {
             expense: ExpenseId::from("e0"),
             group: GroupId::from("g0"),
             fields: single_payer("a", 1000, &["a", "b"]),
+            draft: false,
         },
     );
     let higher = op(
@@ -142,6 +144,7 @@ fn alias_merge_preserves_balances_with_zero_change() {
         expense: ExpenseId::from("e0"),
         group: GroupId::from("g0"),
         fields: single_payer("a", 1000, &["a", "b"]),
+        draft: false,
     };
 
     let before = net_balances(&project(&[op(0, expense.clone())]));
@@ -199,6 +202,7 @@ fn multiple_payers_are_credited_correctly() {
             expense: ExpenseId::from("e0"),
             group: GroupId::from("g0"),
             fields,
+            draft: false,
         },
     )]));
 
@@ -215,6 +219,7 @@ fn settle_up_suggests_minimal_payments() {
             expense: ExpenseId::from("e0"),
             group: GroupId::from("g0"),
             fields: single_payer("a", 900, &["a", "b", "c"]),
+            draft: false,
         },
     )]);
 
@@ -232,6 +237,7 @@ fn expense_lock_is_lww_and_does_not_affect_presence() {
             expense: ExpenseId::from("e0"),
             group: GroupId::from("g0"),
             fields: single_payer("a", 1000, &["a", "b"]),
+            draft: false,
         },
     );
     let lock = op(
@@ -304,4 +310,87 @@ fn signed_op_verifies_and_tampering_is_detected() {
         name: "Hacked".into(),
     };
     assert!(!tampered.verify());
+}
+
+#[test]
+fn draft_expense_is_excluded_until_published() {
+    let draft = op(
+        0,
+        OpKind::CreateExpense {
+            expense: ExpenseId::from("e0"),
+            group: GroupId::from("g0"),
+            fields: single_payer("a", 1000, &["a", "b"]),
+            draft: true,
+        },
+    );
+    let p = project(std::slice::from_ref(&draft));
+    assert!(
+        !p.expenses[&ExpenseId::from("e0")].published,
+        "draft is not published"
+    );
+    assert!(
+        net_balances(&p).is_empty(),
+        "a draft must not affect balances"
+    );
+
+    // Publishing (any order) flips it on and it now counts.
+    let publish = op(
+        1,
+        OpKind::PublishExpense {
+            expense: ExpenseId::from("e0"),
+        },
+    );
+    let published = project(&[publish.clone(), draft.clone()]);
+    assert!(published.expenses[&ExpenseId::from("e0")].published);
+    assert_eq!(
+        net_balances(&published).get(&UserId::from("a")),
+        Some(&Cents(500)),
+        "a published expense counts toward balances"
+    );
+    assert_eq!(
+        project(&[draft, publish]),
+        published,
+        "publish is order-independent"
+    );
+}
+
+#[test]
+fn closed_period_watermark_is_lww() {
+    let create_group = op(
+        0,
+        OpKind::CreateGroup {
+            group: GroupId::from("g0"),
+            name: "Trip".into(),
+        },
+    );
+    let close_early = op(
+        1,
+        OpKind::SetClosedPeriod {
+            group: GroupId::from("g0"),
+            until_ms: 100,
+        },
+    );
+    let close_late = op(
+        2,
+        OpKind::SetClosedPeriod {
+            group: GroupId::from("g0"),
+            until_ms: 500,
+        },
+    );
+
+    let p = project(&[
+        close_late.clone(),
+        close_early.clone(),
+        create_group.clone(),
+    ]);
+    assert_eq!(
+        p.groups[&GroupId::from("g0")].closed_until_ms,
+        500,
+        "highest-HLC watermark wins"
+    );
+    assert_eq!(
+        project(&[create_group, close_early, close_late]),
+        p,
+        "order independent"
+    );
 }

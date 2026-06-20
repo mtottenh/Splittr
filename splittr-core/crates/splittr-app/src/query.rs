@@ -46,6 +46,8 @@ pub struct ExpenseView {
     /// The current user's involvement: paid minus owed (positive = lent).
     pub my_net: Cents,
     pub locked: bool,
+    /// `false` while the expense is a draft (not counted in balances).
+    pub published: bool,
     pub paid_by: Vec<MemberAmount>,
     pub splits: Vec<MemberAmount>,
 }
@@ -138,6 +140,7 @@ fn expense_view(p: &Projection, me: &UserId, id: &ExpenseId, e: &ExpenseRecord) 
         notes: e.fields.notes.clone(),
         my_net: paid - owed,
         locked: e.locked,
+        published: e.published,
         paid_by: e
             .fields
             .paid_by

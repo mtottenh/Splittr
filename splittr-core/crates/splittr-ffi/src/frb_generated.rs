@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1085628380;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1368594426;
 
 // Section: executor
 
@@ -883,6 +883,59 @@ fn wire__crate__api__Engine_open_impl(
         },
     )
 }
+fn wire__crate__api__Engine_publish_expense_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Engine_publish_expense",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>,
+            >>::sse_decode(&mut deserializer);
+            let api_expense_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::Engine::publish_expense(&*api_that_guard, api_expense_id)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__Engine_record_settlement_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1050,6 +1103,63 @@ fn wire__crate__api__Engine_rename_group_impl(
                             &*api_that_guard,
                             api_group_id,
                             api_name,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__Engine_set_closed_period_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Engine_set_closed_period",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>,
+            >>::sse_decode(&mut deserializer);
+            let api_group_id = <String>::sse_decode(&mut deserializer);
+            let api_until_ms = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::Engine::set_closed_period(
+                            &*api_that_guard,
+                            api_group_id,
+                            api_until_ms,
                         )?;
                         Ok(output_ok)
                     })(),
@@ -1239,6 +1349,7 @@ impl SseDecode for crate::dto::ExpenseInput {
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_notes = <Option<String>>::sse_decode(deserializer);
         let mut var_dateMs = <i64>::sse_decode(deserializer);
+        let mut var_draft = <bool>::sse_decode(deserializer);
         return crate::dto::ExpenseInput {
             group_id: var_groupId,
             description: var_description,
@@ -1248,6 +1359,7 @@ impl SseDecode for crate::dto::ExpenseInput {
             category: var_category,
             notes: var_notes,
             date_ms: var_dateMs,
+            draft: var_draft,
         };
     }
 }
@@ -1265,6 +1377,7 @@ impl SseDecode for crate::dto::ExpenseViewDto {
         let mut var_notes = <Option<String>>::sse_decode(deserializer);
         let mut var_myNetCents = <i64>::sse_decode(deserializer);
         let mut var_locked = <bool>::sse_decode(deserializer);
+        let mut var_published = <bool>::sse_decode(deserializer);
         let mut var_paidBy = <Vec<crate::dto::MemberAmountDto>>::sse_decode(deserializer);
         let mut var_splits = <Vec<crate::dto::MemberAmountDto>>::sse_decode(deserializer);
         return crate::dto::ExpenseViewDto {
@@ -1278,6 +1391,7 @@ impl SseDecode for crate::dto::ExpenseViewDto {
             notes: var_notes,
             my_net_cents: var_myNetCents,
             locked: var_locked,
+            published: var_published,
             paid_by: var_paidBy,
             splits: var_splits,
         };
@@ -1715,11 +1829,13 @@ fn pde_ffi_dispatcher_primary_impl(
         14 => wire__crate__api__Engine_my_name_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__api__Engine_my_user_id_impl(port, ptr, rust_vec_len, data_len),
         16 => wire__crate__api__Engine_open_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__Engine_record_settlement_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__Engine_remove_member_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__Engine_rename_group_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__Engine_set_my_name_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__Engine_unlock_expense_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__Engine_publish_expense_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__Engine_record_settlement_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__Engine_remove_member_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__Engine_rename_group_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__Engine_set_closed_period_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__Engine_set_my_name_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__Engine_unlock_expense_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1784,6 +1900,7 @@ impl flutter_rust_bridge::IntoDart for crate::dto::ExpenseInput {
             self.category.into_into_dart().into_dart(),
             self.notes.into_into_dart().into_dart(),
             self.date_ms.into_into_dart().into_dart(),
+            self.draft.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1808,6 +1925,7 @@ impl flutter_rust_bridge::IntoDart for crate::dto::ExpenseViewDto {
             self.notes.into_into_dart().into_dart(),
             self.my_net_cents.into_into_dart().into_dart(),
             self.locked.into_into_dart().into_dart(),
+            self.published.into_into_dart().into_dart(),
             self.paid_by.into_into_dart().into_dart(),
             self.splits.into_into_dart().into_dart(),
         ]
@@ -2091,6 +2209,7 @@ impl SseEncode for crate::dto::ExpenseInput {
         <String>::sse_encode(self.category, serializer);
         <Option<String>>::sse_encode(self.notes, serializer);
         <i64>::sse_encode(self.date_ms, serializer);
+        <bool>::sse_encode(self.draft, serializer);
     }
 }
 
@@ -2107,6 +2226,7 @@ impl SseEncode for crate::dto::ExpenseViewDto {
         <Option<String>>::sse_encode(self.notes, serializer);
         <i64>::sse_encode(self.my_net_cents, serializer);
         <bool>::sse_encode(self.locked, serializer);
+        <bool>::sse_encode(self.published, serializer);
         <Vec<crate::dto::MemberAmountDto>>::sse_encode(self.paid_by, serializer);
         <Vec<crate::dto::MemberAmountDto>>::sse_encode(self.splits, serializer);
     }

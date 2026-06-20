@@ -66,6 +66,12 @@ class AppNotifier extends AsyncNotifier<AppData> {
   Future<void> deleteExpense(String expenseId) =>
       _mutate((e) => e.deleteExpense(expenseId: expenseId));
 
+  Future<void> publishExpense(String expenseId) =>
+      _mutate((e) => e.publishExpense(expenseId: expenseId));
+
+  Future<void> setClosedPeriod(String groupId, int untilMs) =>
+      _mutate((e) => e.setClosedPeriod(groupId: groupId, untilMs: untilMs));
+
   Future<String> recordSettlement({
     required String groupId,
     required String from,

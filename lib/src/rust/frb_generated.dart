@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1085628380;
+  int get rustContentHash => -1368594426;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -147,6 +147,11 @@ abstract class RustLibApi extends BaseApi {
     required BigInt site,
   });
 
+  Future<void> crateApiEnginePublishExpense({
+    required Engine that,
+    required String expenseId,
+  });
+
   Future<String> crateApiEngineRecordSettlement({
     required Engine that,
     required String groupId,
@@ -165,6 +170,12 @@ abstract class RustLibApi extends BaseApi {
     required Engine that,
     required String groupId,
     required String name,
+  });
+
+  Future<void> crateApiEngineSetClosedPeriod({
+    required Engine that,
+    required String groupId,
+    required PlatformInt64 untilMs,
   });
 
   Future<void> crateApiEngineSetMyName({
@@ -767,6 +778,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiEnginePublishExpense({
+    required Engine that,
+    required String expenseId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(expenseId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEnginePublishExpenseConstMeta,
+        argValues: [that, expenseId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEnginePublishExpenseConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_publish_expense",
+        argNames: ["that", "expenseId"],
+      );
+
+  @override
   Future<String> crateApiEngineRecordSettlement({
     required Engine that,
     required String groupId,
@@ -789,7 +838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -829,7 +878,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -868,7 +917,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -889,6 +938,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiEngineSetClosedPeriod({
+    required Engine that,
+    required String groupId,
+    required PlatformInt64 untilMs,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(groupId, serializer);
+          sse_encode_i_64(untilMs, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineSetClosedPeriodConstMeta,
+        argValues: [that, groupId, untilMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineSetClosedPeriodConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_set_closed_period",
+        argNames: ["that", "groupId", "untilMs"],
+      );
+
+  @override
   Future<void> crateApiEngineSetMyName({
     required Engine that,
     required String name,
@@ -905,7 +994,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -942,7 +1031,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1051,8 +1140,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ExpenseInput dco_decode_expense_input(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ExpenseInput(
       groupId: dco_decode_String(arr[0]),
       description: dco_decode_String(arr[1]),
@@ -1062,6 +1151,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       category: dco_decode_String(arr[5]),
       notes: dco_decode_opt_String(arr[6]),
       dateMs: dco_decode_i_64(arr[7]),
+      draft: dco_decode_bool(arr[8]),
     );
   }
 
@@ -1069,8 +1159,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ExpenseViewDto dco_decode_expense_view_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return ExpenseViewDto(
       id: dco_decode_String(arr[0]),
       groupId: dco_decode_String(arr[1]),
@@ -1082,8 +1172,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       notes: dco_decode_opt_String(arr[7]),
       myNetCents: dco_decode_i_64(arr[8]),
       locked: dco_decode_bool(arr[9]),
-      paidBy: dco_decode_list_member_amount_dto(arr[10]),
-      splits: dco_decode_list_member_amount_dto(arr[11]),
+      published: dco_decode_bool(arr[10]),
+      paidBy: dco_decode_list_member_amount_dto(arr[11]),
+      splits: dco_decode_list_member_amount_dto(arr[12]),
     );
   }
 
@@ -1474,6 +1565,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_category = sse_decode_String(deserializer);
     var var_notes = sse_decode_opt_String(deserializer);
     var var_dateMs = sse_decode_i_64(deserializer);
+    var var_draft = sse_decode_bool(deserializer);
     return ExpenseInput(
       groupId: var_groupId,
       description: var_description,
@@ -1483,6 +1575,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       category: var_category,
       notes: var_notes,
       dateMs: var_dateMs,
+      draft: var_draft,
     );
   }
 
@@ -1499,6 +1592,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_notes = sse_decode_opt_String(deserializer);
     var var_myNetCents = sse_decode_i_64(deserializer);
     var var_locked = sse_decode_bool(deserializer);
+    var var_published = sse_decode_bool(deserializer);
     var var_paidBy = sse_decode_list_member_amount_dto(deserializer);
     var var_splits = sse_decode_list_member_amount_dto(deserializer);
     return ExpenseViewDto(
@@ -1512,6 +1606,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       notes: var_notes,
       myNetCents: var_myNetCents,
       locked: var_locked,
+      published: var_published,
       paidBy: var_paidBy,
       splits: var_splits,
     );
@@ -2022,6 +2117,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.category, serializer);
     sse_encode_opt_String(self.notes, serializer);
     sse_encode_i_64(self.dateMs, serializer);
+    sse_encode_bool(self.draft, serializer);
   }
 
   @protected
@@ -2040,6 +2136,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.notes, serializer);
     sse_encode_i_64(self.myNetCents, serializer);
     sse_encode_bool(self.locked, serializer);
+    sse_encode_bool(self.published, serializer);
     sse_encode_list_member_amount_dto(self.paidBy, serializer);
     sse_encode_list_member_amount_dto(self.splits, serializer);
   }
@@ -2480,6 +2577,12 @@ class EngineImpl extends RustOpaque implements Engine {
   Future<String> myUserId() =>
       RustLib.instance.api.crateApiEngineMyUserId(that: this);
 
+  /// Publish a draft expense so it counts toward balances (#15).
+  Future<void> publishExpense({required String expenseId}) => RustLib
+      .instance
+      .api
+      .crateApiEnginePublishExpense(that: this, expenseId: expenseId);
+
   Future<String> recordSettlement({
     required String groupId,
     required String from,
@@ -2508,6 +2611,17 @@ class EngineImpl extends RustOpaque implements Engine {
         groupId: groupId,
         name: name,
       );
+
+  /// Close a group's accounting period (#15): expenses dated at or before
+  /// `until_ms` become uneditable. Pass `0` to reopen.
+  Future<void> setClosedPeriod({
+    required String groupId,
+    required PlatformInt64 untilMs,
+  }) => RustLib.instance.api.crateApiEngineSetClosedPeriod(
+    that: this,
+    groupId: groupId,
+    untilMs: untilMs,
+  );
 
   Future<void> setMyName({required String name}) =>
       RustLib.instance.api.crateApiEngineSetMyName(that: this, name: name);

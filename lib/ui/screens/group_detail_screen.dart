@@ -59,6 +59,19 @@ class _GroupDetail extends ConsumerWidget {
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _rename(context, ref),
             ),
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'close') _closePeriod(context, ref);
+                if (v == 'reopen') _reopenPeriod(ref);
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'close',
+                  child: Text('Close period up to a date…'),
+                ),
+                PopupMenuItem(value: 'reopen', child: Text('Reopen all periods')),
+              ],
+            ),
           ],
           bottom: const TabBar(
             tabs: [Tab(text: 'Expenses'), Tab(text: 'Balances')],
@@ -152,6 +165,24 @@ class _GroupDetail extends ConsumerWidget {
       await ref.read(appProvider.notifier).renameGroup(group.id, name);
     }
   }
+
+  Future<void> _closePeriod(BuildContext context, WidgetRef ref) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2015),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      helpText: 'Freeze expenses up to and including',
+    );
+    if (picked == null) return;
+    // Include the whole chosen day.
+    final until = DateTime(picked.year, picked.month, picked.day, 23, 59, 59)
+        .millisecondsSinceEpoch;
+    await ref.read(appProvider.notifier).setClosedPeriod(group.id, until);
+  }
+
+  Future<void> _reopenPeriod(WidgetRef ref) =>
+      ref.read(appProvider.notifier).setClosedPeriod(group.id, 0);
 }
 
 /// A ledger entry is an expense or a settlement; this unifies them for the list.
@@ -222,8 +253,19 @@ class _ExpenseTile extends StatelessWidget {
         child: Icon(category.icon,
             color: theme.colorScheme.onSecondaryContainer, size: 20),
       ),
-      title: Text(expense.description,
-          style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(expense.description,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis),
+          ),
+          if (!expense.published) ...[
+            const SizedBox(width: 8),
+            const _DraftChip(),
+          ],
+        ],
+      ),
       subtitle: Text('$payerNames paid ${Money.format(expense.totalCents)}'),
       trailing: BalanceLabel(
         netCents: expense.myNetCents,
@@ -238,6 +280,28 @@ class _ExpenseTile extends StatelessWidget {
           fullscreenDialog: true,
         ),
       ),
+    );
+  }
+}
+
+class _DraftChip extends StatelessWidget {
+  const _DraftChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text('DRAFT',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: scheme.onTertiaryContainer,
+          )),
     );
   }
 }

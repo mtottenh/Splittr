@@ -48,6 +48,9 @@ impl Projection {
 pub struct GroupRecord {
     pub name: String,
     pub members: BTreeSet<UserId>,
+    /// Expenses dated at or before this are in a closed period and cannot be
+    /// edited (#15). `0` means no period is closed.
+    pub closed_until_ms: i64,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -61,6 +64,9 @@ pub struct ExpenseRecord {
     pub fields: ExpenseFields,
     /// Whether the expense is locked against further edits (#15).
     pub locked: bool,
+    /// `false` while the expense is a private draft — drafts are excluded from
+    /// balances and settle-up but kept in the ledger (#15).
+    pub published: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]

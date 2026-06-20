@@ -33,6 +33,8 @@ pub struct ExpenseInput {
     pub category: String,
     pub notes: Option<String>,
     pub date_ms: i64,
+    /// Create as a private draft (ignored when editing). See #15.
+    pub draft: bool,
 }
 
 pub struct GroupSummaryDto {
@@ -66,6 +68,8 @@ pub struct ExpenseViewDto {
     pub notes: Option<String>,
     pub my_net_cents: i64,
     pub locked: bool,
+    /// `false` while the expense is a draft (not counted in balances). See #15.
+    pub published: bool,
     pub paid_by: Vec<MemberAmountDto>,
     pub splits: Vec<MemberAmountDto>,
 }
