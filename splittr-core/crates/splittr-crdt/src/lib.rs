@@ -27,12 +27,12 @@ pub use balance::{net_balances, settle_up};
 pub use clock::{Hlc, SiteId};
 pub use materialize::{project, Materializer};
 pub use op::{Op, OpId, OpKind};
-pub use projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord};
+pub use projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord, UserRecord};
 
 // Re-export the crypto + domain types that appear in this crate's public API so
 // callers (and tests) need only depend on `splittr-crdt`.
 pub use splittr_crypto::{PublicKey, Signature, SigningKey};
 pub use splittr_domain::{
-    simplify_debts, split_equal, Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, Split,
-    Transfer, UserId,
+    simplify_debts, split_by_weights, split_equal, Cents, ExpenseFields, ExpenseId, GroupId,
+    SettlementId, Split, SplitError, SplitPlan, Transfer, UserId,
 };

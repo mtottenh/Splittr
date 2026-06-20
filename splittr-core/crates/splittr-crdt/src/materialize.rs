@@ -14,7 +14,7 @@ use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, Use
 
 use crate::clock::Hlc;
 use crate::op::{Op, OpId, OpKind};
-use crate::projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord};
+use crate::projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord, UserRecord};
 
 /// A value tagged with the HLC at which it was written.
 struct Stamped<V> {
@@ -48,6 +48,7 @@ pub struct Materializer {
     seen: BTreeSet<OpId>,
     group_created: BTreeSet<GroupId>,
     group_name: BTreeMap<GroupId, Stamped<String>>,
+    profiles: BTreeMap<UserId, Stamped<String>>,
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
     expense_group: BTreeMap<ExpenseId, Stamped<GroupId>>,
     expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
@@ -144,6 +145,9 @@ impl Materializer {
             OpKind::AddAlias { alias, canonical } => {
                 self.alias_edges.push((alias.clone(), canonical.clone()));
             }
+            OpKind::UpsertProfile { user, name } => {
+                lww(&mut self.profiles, user.clone(), stamp(hlc, name.clone()));
+            }
         }
     }
 
@@ -206,8 +210,19 @@ impl Materializer {
             );
         }
 
+        let mut users = BTreeMap::new();
+        for (id, stamped) in &self.profiles {
+            users.insert(
+                id.clone(),
+                UserRecord {
+                    name: stamped.value.clone(),
+                },
+            );
+        }
+
         Projection {
             groups,
+            users,
             expenses,
             settlements,
             aliases,

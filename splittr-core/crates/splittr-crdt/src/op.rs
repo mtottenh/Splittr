@@ -60,6 +60,12 @@ pub enum OpKind {
         alias: UserId,
         canonical: UserId,
     },
+    /// A user's display profile — LWW by HLC (rule 2). Covers identity/people
+    /// (#6/#2): a real user or a placeholder, both just have a name here.
+    UpsertProfile {
+        user: UserId,
+        name: String,
+    },
 }
 
 /// An immutable, content-addressed, signed operation.

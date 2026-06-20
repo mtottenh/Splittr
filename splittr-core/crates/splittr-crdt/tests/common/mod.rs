@@ -114,6 +114,10 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
             alias: user(a),
             canonical: user(b)
         }),
+        (0u8..4, 0u8..3).prop_map(|(u, n)| OpKind::UpsertProfile {
+            user: user(u),
+            name: format!("name{n}")
+        }),
     ]
 }
 

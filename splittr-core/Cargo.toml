@@ -5,10 +5,11 @@ members = [
     "crates/splittr-crypto",
     "crates/splittr-crdt",
     "crates/splittr-store",
+    "crates/splittr-app",
 ]
 
 # Shared dependency versions for the engine workspace. New crates
-# (splittr-sync, splittr-app, splittr-ffi) join as the roadmap progresses —
+# (splittr-sync, splittr-ffi) join as the roadmap progresses —
 # see docs/ARCHITECTURE.md §3.
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -24,6 +25,7 @@ serde-big-array = "0.5"
 # opaque, eventually-encrypted op bytes keyed by content id).
 redb = "2"
 thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
 proptest = "1"
 tempfile = "3"
 

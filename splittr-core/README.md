@@ -14,7 +14,7 @@ Flutter app as a presentation shell over an FFI. See
 | `splittr-crypto` | Ed25519 identity keys + op signatures (#6); E2E (#14) later | ✅ initial (sign/verify) |
 | `splittr-store` | Op-log + projection persistence; `Repository` (#1) | ✅ initial (in-memory + redb) |
 | `splittr-sync` | iroh transport (#9/#20) | ⏳ planned |
-| `splittr-app` | Use-cases / command + query API | ⏳ planned |
+| `splittr-app` | Command/query use-cases over `Repository` (#25) | ✅ initial |
 | `splittr-ffi` | flutter_rust_bridge surface (#23) | ⏳ planned |
 
 ## Develop

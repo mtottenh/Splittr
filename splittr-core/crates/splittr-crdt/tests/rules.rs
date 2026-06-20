@@ -225,6 +225,31 @@ fn settle_up_suggests_minimal_payments() {
 }
 
 #[test]
+fn profile_name_is_lww() {
+    let early = op(
+        1,
+        OpKind::UpsertProfile {
+            user: UserId::from("a"),
+            name: "Al".into(),
+        },
+    );
+    let late = op(
+        2,
+        OpKind::UpsertProfile {
+            user: UserId::from("a"),
+            name: "Alice".into(),
+        },
+    );
+    let p = project(&[late.clone(), early.clone()]); // delivered out of order
+    assert_eq!(
+        p.users[&UserId::from("a")].name,
+        "Alice",
+        "highest HLC wins"
+    );
+    assert_eq!(project(&[early, late]), p, "order independent");
+}
+
+#[test]
 fn signed_op_verifies_and_tampering_is_detected() {
     let valid = op(
         0,

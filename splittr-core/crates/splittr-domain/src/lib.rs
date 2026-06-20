@@ -14,4 +14,4 @@ pub use debt::{simplify_debts, Transfer};
 pub use expense::ExpenseFields;
 pub use ids::{ExpenseId, GroupId, SettlementId, UserId};
 pub use money::Cents;
-pub use split::{split_equal, Split};
+pub use split::{split_by_weights, split_equal, Split, SplitError, SplitPlan};

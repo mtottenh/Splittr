@@ -1,0 +1,14 @@
+[package]
+name = "splittr-app"
+version = "0.1.0"
+edition = "2021"
+description = "Command/query use-cases over the Splittr engine — the API the FFI exposes."
+
+[dependencies]
+splittr-crdt = { path = "../splittr-crdt" }
+splittr-store = { path = "../splittr-store" }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

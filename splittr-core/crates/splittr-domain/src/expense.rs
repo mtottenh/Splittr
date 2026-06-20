@@ -12,6 +12,7 @@ use crate::split::Split;
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct ExpenseFields {
+    pub description: String,
     /// Who paid, and how much. Supports the common single-payer case and the
     /// occasional "we both chipped in" case.
     pub paid_by: BTreeMap<UserId, Cents>,
@@ -27,6 +28,7 @@ impl ExpenseFields {
     /// Build with the given payers/splits and default metadata.
     pub fn new(paid_by: BTreeMap<UserId, Cents>, total: Cents, splits: Vec<Split>) -> Self {
         Self {
+            description: String::new(),
             paid_by,
             total,
             splits,

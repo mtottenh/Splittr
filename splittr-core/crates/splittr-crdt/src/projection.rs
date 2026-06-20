@@ -9,6 +9,8 @@ use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, Use
 #[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub struct Projection {
     pub groups: BTreeMap<GroupId, GroupRecord>,
+    /// User display profiles (name).
+    pub users: BTreeMap<UserId, UserRecord>,
     /// Present (non-voided) expenses only.
     pub expenses: BTreeMap<ExpenseId, ExpenseRecord>,
     /// Present (non-voided) settlements only.
@@ -17,10 +19,40 @@ pub struct Projection {
     pub aliases: BTreeMap<UserId, UserId>,
 }
 
+impl Projection {
+    /// A sub-projection containing only `group`'s expenses and settlements
+    /// (users/aliases retained). Lets balance functions be reused for
+    /// group-scoped totals without duplicating their logic.
+    pub fn for_group(&self, group: &GroupId) -> Projection {
+        Projection {
+            groups: self.groups.clone(),
+            users: self.users.clone(),
+            expenses: self
+                .expenses
+                .iter()
+                .filter(|(_, e)| &e.group == group)
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            settlements: self
+                .settlements
+                .iter()
+                .filter(|(_, s)| &s.group == group)
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            aliases: self.aliases.clone(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct GroupRecord {
     pub name: String,
     pub members: BTreeSet<UserId>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct UserRecord {
+    pub name: String,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]

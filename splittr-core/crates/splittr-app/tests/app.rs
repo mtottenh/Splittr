@@ -1,0 +1,203 @@
+//! Behavioural tests for the application facade over an in-memory (and redb)
+//! store: the core flows, input validation, and identity-based authorization.
+
+use std::collections::BTreeMap;
+
+use splittr_app::*;
+
+fn new_app() -> App<MemoryOpStore> {
+    App::new(
+        Identity::from_seed([1u8; 32]),
+        MemoryOpStore::new(),
+        SiteId(1),
+    )
+    .unwrap()
+}
+
+fn paid(user: &UserId, cents: i64) -> BTreeMap<UserId, Cents> {
+    let mut m = BTreeMap::new();
+    m.insert(user.clone(), Cents(cents));
+    m
+}
+
+#[test]
+fn create_group_add_expense_then_settle_up() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+
+    // I pay 30.00, split equally between me and Bob.
+    app.add_expense(
+        &group,
+        "Hotel",
+        paid(&me, 3000),
+        Cents(3000),
+        SplitPlan::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        "travel",
+        None,
+        0,
+    )
+    .unwrap();
+
+    let detail = app.group_detail(&group).unwrap();
+    let bal = |u: &UserId| detail.members.iter().find(|m| &m.user == u).unwrap().net;
+    assert_eq!(bal(&me), Cents(1500));
+    assert_eq!(bal(&bob), Cents(-1500));
+    assert_eq!(detail.expenses.len(), 1);
+    assert_eq!(detail.expenses[0].description, "Hotel");
+
+    // Settle-up suggests Bob pays me 15.00.
+    assert_eq!(detail.settle_up.len(), 1);
+    assert_eq!(detail.settle_up[0].from, bob);
+    assert_eq!(detail.settle_up[0].to, me);
+    assert_eq!(detail.settle_up[0].amount, Cents(1500));
+
+    app.record_settlement(&group, &bob, &me, Cents(1500))
+        .unwrap();
+    let settled = app.group_detail(&group).unwrap();
+    assert!(settled.settle_up.is_empty());
+    assert!(settled.members.iter().all(|m| m.net == Cents(0)));
+}
+
+#[test]
+fn group_summary_shows_my_balance_and_names() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+    app.add_expense(
+        &group,
+        "Lunch",
+        paid(&me, 1000),
+        Cents(1000),
+        SplitPlan::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        "food",
+        None,
+        0,
+    )
+    .unwrap();
+
+    let summaries = app.groups();
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries[0].name, "Trip");
+    assert_eq!(summaries[0].member_count, 2);
+    assert_eq!(summaries[0].my_net, Cents(500));
+
+    let detail = app.group_detail(&group).unwrap();
+    let bob_name = &detail.members.iter().find(|m| m.user == bob).unwrap().name;
+    assert_eq!(bob_name, "Bob");
+}
+
+#[test]
+fn weighted_split_through_the_app() {
+    let mut app = new_app();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+
+    let mut weights = BTreeMap::new();
+    weights.insert(me.clone(), 3u64);
+    weights.insert(bob.clone(), 1u64);
+    app.add_expense(
+        &group,
+        "Dinner",
+        paid(&me, 1000),
+        Cents(1000),
+        SplitPlan::Weighted { weights },
+        "food",
+        None,
+        0,
+    )
+    .unwrap();
+
+    // I owe 3/4 (750), paid 1000 → net +250.
+    let detail = app.group_detail(&group).unwrap();
+    let my_net = detail.members.iter().find(|m| m.user == me).unwrap().net;
+    assert_eq!(my_net, Cents(250));
+}
+
+#[test]
+fn unbalanced_expense_is_rejected() {
+    let mut app = new_app();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+
+    // Payments (999) don't equal the total (1000).
+    let err = app
+        .add_expense(
+            &group,
+            "Oops",
+            paid(&me, 999),
+            Cents(1000),
+            SplitPlan::Equal {
+                participants: vec![me, bob],
+            },
+            "general",
+            None,
+            0,
+        )
+        .unwrap_err();
+    assert!(matches!(err, AppError::Validation(_)));
+    // Nothing was recorded.
+    assert!(app.group_detail(&group).unwrap().expenses.is_empty());
+}
+
+#[test]
+fn non_member_cannot_add_expense_and_state_persists() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ops.redb");
+
+    // First identity creates a group, then we close the app.
+    let group = {
+        let mut owner = App::new(
+            Identity::from_seed([1u8; 32]),
+            RedbOpStore::open(&path).unwrap(),
+            SiteId(1),
+        )
+        .unwrap();
+        owner.create_group("Trip", &[]).unwrap()
+    };
+
+    // A different identity reopens the same store: it can *see* the group
+    // (persistence works) but is not a member (authorization works).
+    let mut outsider = App::new(
+        Identity::from_seed([2u8; 32]),
+        RedbOpStore::open(&path).unwrap(),
+        SiteId(2),
+    )
+    .unwrap();
+    assert!(outsider.group_detail(&group).is_some(), "state persisted");
+
+    let me = outsider.me().clone();
+    let err = outsider
+        .add_expense(
+            &group,
+            "x",
+            paid(&me, 1000),
+            Cents(1000),
+            SplitPlan::Equal {
+                participants: vec![me],
+            },
+            "general",
+            None,
+            0,
+        )
+        .unwrap_err();
+    assert!(matches!(err, AppError::NotAuthorized(_)));
+}
