@@ -4,6 +4,16 @@ A cross-platform **expense sharing app** (a Splitwise clone) built with
 **Flutter** — one codebase that compiles to native apps for **iOS, Android,
 Windows, Linux and macOS**, plus the web.
 
+> ### ℹ️ About this project — an experiment in autonomous AI coding
+>
+> Splittr is an experiment to see just how far autonomous AI coding has come.
+> The application — its architecture, implementation, tests, forward-looking
+> design documents (`docs/adr/`), and the GitHub issue roadmap — is being built
+> by an autonomous AI coding agent (Claude), with a human directing at the level
+> of **goals and architectural decisions** rather than line-by-line code. Treat
+> it as a living demonstration of what that collaboration can produce, not a
+> finished product.
+
 ## Why Flutter?
 
 The brief was native apps for iOS, Android, Windows and Linux from a single
