@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::currency::OriginalAmount;
 use crate::ids::UserId;
 use crate::money::Cents;
 use crate::split::Split;
@@ -16,12 +17,18 @@ pub struct ExpenseFields {
     /// Who paid, and how much. Supports the common single-payer case and the
     /// occasional "we both chipped in" case.
     pub paid_by: BTreeMap<UserId, Cents>,
+    /// The total, in the expense's base currency (its group's currency, or the
+    /// app default for a non-group expense). `paid_by`/`splits` are in this
+    /// currency too.
     pub total: Cents,
     pub splits: Vec<Split>,
     /// Unix epoch milliseconds.
     pub date_ms: i64,
     pub category: String,
     pub notes: Option<String>,
+    /// Present when the expense was entered in a different currency (#3); the
+    /// stored amounts above are the converted base-currency values.
+    pub original: Option<OriginalAmount>,
 }
 
 impl ExpenseFields {
@@ -35,6 +42,7 @@ impl ExpenseFields {
             date_ms: 0,
             category: "general".to_string(),
             notes: None,
+            original: None,
         }
     }
 

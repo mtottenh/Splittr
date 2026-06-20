@@ -65,6 +65,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupDetailDto dco_decode_box_autoadd_group_detail_dto(dynamic raw);
 
   @protected
+  OriginalAmountDto dco_decode_box_autoadd_original_amount_dto(dynamic raw);
+
+  @protected
   ExpenseInput dco_decode_expense_input(dynamic raw);
 
   @protected
@@ -140,6 +143,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupDetailDto? dco_decode_opt_box_autoadd_group_detail_dto(dynamic raw);
 
   @protected
+  OriginalAmountDto? dco_decode_opt_box_autoadd_original_amount_dto(
+    dynamic raw,
+  );
+
+  @protected
+  OriginalAmountDto dco_decode_original_amount_dto(dynamic raw);
+
+  @protected
   Payer dco_decode_payer(dynamic raw);
 
   @protected
@@ -211,6 +222,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupDetailDto sse_decode_box_autoadd_group_detail_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OriginalAmountDto sse_decode_box_autoadd_original_amount_dto(
     SseDeserializer deserializer,
   );
 
@@ -308,6 +324,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OriginalAmountDto? sse_decode_opt_box_autoadd_original_amount_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OriginalAmountDto sse_decode_original_amount_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Payer sse_decode_payer(SseDeserializer deserializer);
 
   @protected
@@ -396,6 +422,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_group_detail_dto(
     GroupDetailDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_original_amount_dto(
+    OriginalAmountDto self,
     SseSerializer serializer,
   );
 
@@ -525,6 +557,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_group_detail_dto(
     GroupDetailDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_original_amount_dto(
+    OriginalAmountDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_original_amount_dto(
+    OriginalAmountDto self,
     SseSerializer serializer,
   );
 

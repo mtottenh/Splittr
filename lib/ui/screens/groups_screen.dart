@@ -105,7 +105,8 @@ class _GroupTile extends StatelessWidget {
           '${group.memberCount} '
           '${group.memberCount == 1 ? "member" : "members"}',
         ),
-        trailing: BalanceLabel(netCents: group.myNetCents, currencyCode: 'USD'),
+        trailing:
+            BalanceLabel(netCents: group.myNetCents, currencyCode: group.currency),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => GroupDetailScreen(groupId: group.id),

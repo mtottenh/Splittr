@@ -1,9 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/exchange_rate_service.dart';
 import '../src/rust/api.dart';
+import '../src/rust/api.dart' as ffi show convertCurrency, currencyMinorUnits;
 import '../src/rust/dto.dart';
 import 'app_data.dart';
 import 'engine.dart';
+
+/// Live FX rates for multi-currency expenses (#3). Conversion maths is in Rust;
+/// this only fetches a rate.
+final exchangeRateProvider =
+    Provider<ExchangeRateService>((ref) => HttpExchangeRateService());
 
 /// The app's single source of truth: an engine-backed snapshot plus every
 /// mutation the UI needs. Mutations call the Rust engine, then refresh the
@@ -49,11 +56,44 @@ class AppNotifier extends AsyncNotifier<AppData> {
   Future<String> addPerson(String name) =>
       _mutate((e) => e.addPerson(name: name));
 
-  Future<String> createGroup(String name, List<String> memberIds) =>
-      _mutate((e) => e.createGroup(name: name, memberIds: memberIds));
+  Future<String> createGroup(
+    String name,
+    List<String> memberIds, {
+    String currency = 'USD',
+  }) =>
+      _mutate((e) => e.createGroup(
+            name: name,
+            memberIds: memberIds,
+            currency: currency,
+          ));
 
   Future<void> renameGroup(String groupId, String name) =>
       _mutate((e) => e.renameGroup(groupId: groupId, name: name));
+
+  Future<void> setGroupCurrency(String groupId, String currency) =>
+      _mutate((e) => e.setGroupCurrency(groupId: groupId, currency: currency));
+
+  /// Convert via the engine (money maths stays in Rust). Non-mutating.
+  Future<int> convertCurrency({
+    required int amountCents,
+    required int rateMicro,
+    required String from,
+    required String to,
+  }) async {
+    await ref.read(engineProvider.future); // ensure the FFI is initialised
+    return ffi.convertCurrency(
+      amountCents: amountCents,
+      rateMicro: rateMicro,
+      fromCurrency: from,
+      toCurrency: to,
+    );
+  }
+
+  /// Minor-unit count for a currency code (for amount parsing). Non-mutating.
+  Future<int> currencyMinorUnits(String code) async {
+    await ref.read(engineProvider.future);
+    return ffi.currencyMinorUnits(code: code);
+  }
 
   Future<void> addMember(String groupId, String userId) =>
       _mutate((e) => e.addMember(groupId: groupId, userId: userId));

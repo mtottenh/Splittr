@@ -2,7 +2,7 @@
 
 use splittr_crdt::{
     net_balances, pairwise_with, settle_up, Cents, ExpenseId, ExpenseRecord, GroupId, Op, OpKind,
-    Projection, SettlementId, Transfer, UserId,
+    OriginalAmount, Projection, SettlementId, Transfer, UserId,
 };
 
 /// A group as shown in the groups list.
@@ -10,6 +10,7 @@ use splittr_crdt::{
 pub struct GroupSummary {
     pub id: GroupId,
     pub name: String,
+    pub currency: String,
     pub member_count: usize,
     /// The current user's net within this group (positive = is owed).
     pub my_net: Cents,
@@ -41,6 +42,8 @@ pub struct ExpenseView {
     pub group_name: Option<String>,
     pub description: String,
     pub total: Cents,
+    /// The currency `total`/`paid_by`/`splits` are expressed in (#3).
+    pub currency: String,
     pub category: String,
     pub date_ms: i64,
     pub notes: Option<String>,
@@ -49,6 +52,8 @@ pub struct ExpenseView {
     pub locked: bool,
     /// `false` while the expense is a draft (not counted in balances).
     pub published: bool,
+    /// Present when entered in a different currency: the original amount + rate.
+    pub original: Option<OriginalAmount>,
     pub paid_by: Vec<MemberAmount>,
     pub splits: Vec<MemberAmount>,
 }
@@ -69,6 +74,7 @@ pub struct SettlementView {
 pub struct GroupDetail {
     pub id: GroupId,
     pub name: String,
+    pub currency: String,
     pub members: Vec<MemberBalance>,
     pub expenses: Vec<ExpenseView>,
     pub settlements: Vec<SettlementView>,
@@ -136,12 +142,19 @@ fn expense_view(p: &Projection, me: &UserId, id: &ExpenseId, e: &ExpenseRecord) 
             .map(|g| g.name.clone()),
         description: e.fields.description.clone(),
         total: e.fields.total,
+        currency: e
+            .group
+            .as_ref()
+            .and_then(|g| p.groups.get(g))
+            .map(|g| g.currency.clone())
+            .unwrap_or_else(|| "USD".to_string()),
         category: e.fields.category.clone(),
         date_ms: e.fields.date_ms,
         notes: e.fields.notes.clone(),
         my_net: paid - owed,
         locked: e.locked,
         published: e.published,
+        original: e.fields.original.clone(),
         paid_by: e
             .fields
             .paid_by
@@ -176,6 +189,7 @@ pub fn groups(p: &Projection, me: &UserId) -> Vec<GroupSummary> {
             GroupSummary {
                 id: id.clone(),
                 name: group.name.clone(),
+                currency: group.currency.clone(),
                 member_count: group.members.len(),
                 my_net: net.get(me).copied().unwrap_or(Cents::ZERO),
             }
@@ -222,6 +236,7 @@ pub fn group_detail(p: &Projection, me: &UserId, group: &GroupId) -> Option<Grou
     Some(GroupDetail {
         id: group.clone(),
         name: record.name.clone(),
+        currency: record.currency.clone(),
         members,
         expenses,
         settlements,

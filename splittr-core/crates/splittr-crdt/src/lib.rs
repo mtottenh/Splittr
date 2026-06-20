@@ -33,6 +33,7 @@ pub use projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord, U
 // callers (and tests) need only depend on `splittr-crdt`.
 pub use splittr_crypto::{PublicKey, Signature, SigningKey};
 pub use splittr_domain::{
-    simplify_debts, split_by_weights, split_equal, Cents, ExpenseFields, ExpenseId, GroupId,
-    SettlementId, Split, SplitError, SplitPlan, Transfer, UserId,
+    convert, minor_units, simplify_debts, split_by_weights, split_equal, Cents, ExpenseFields,
+    ExpenseId, GroupId, OriginalAmount, SettlementId, Split, SplitError, SplitPlan, Transfer,
+    UserId,
 };

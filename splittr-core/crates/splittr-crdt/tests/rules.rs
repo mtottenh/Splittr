@@ -355,6 +355,44 @@ fn draft_expense_is_excluded_until_published() {
 }
 
 #[test]
+fn group_currency_defaults_to_usd_and_is_lww() {
+    let create = op(
+        0,
+        OpKind::CreateGroup {
+            group: GroupId::from("g0"),
+            name: "Trip".into(),
+        },
+    );
+    // Default currency with no SetGroupCurrency op.
+    assert_eq!(
+        project(std::slice::from_ref(&create)).groups[&GroupId::from("g0")].currency,
+        "USD"
+    );
+
+    let eur = op(
+        1,
+        OpKind::SetGroupCurrency {
+            group: GroupId::from("g0"),
+            currency: "EUR".into(),
+        },
+    );
+    let gbp = op(
+        2,
+        OpKind::SetGroupCurrency {
+            group: GroupId::from("g0"),
+            currency: "GBP".into(),
+        },
+    );
+    let p = project(&[gbp.clone(), eur.clone(), create.clone()]);
+    assert_eq!(
+        p.groups[&GroupId::from("g0")].currency,
+        "GBP",
+        "highest-HLC currency wins"
+    );
+    assert_eq!(project(&[create, eur, gbp]), p, "order independent");
+}
+
+#[test]
 fn non_group_expense_counts_in_balances_but_not_in_any_group() {
     // a non-group expense: a pays 10.00 split with b, no group attached.
     let p = project(&[op(

@@ -9,6 +9,26 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `lock`, `seed32`
 
+/// Convert `amount_cents` from `from_currency` to `to_currency` at `rate_micro`
+/// (target units per source unit, ×1e6). Integer-safe; the money math lives in
+/// Rust so the shell never duplicates it (#3).
+Future<PlatformInt64> convertCurrency({
+  required PlatformInt64 amountCents,
+  required PlatformInt64 rateMicro,
+  required String fromCurrency,
+  required String toCurrency,
+}) => RustLib.instance.api.crateApiConvertCurrency(
+  amountCents: amountCents,
+  rateMicro: rateMicro,
+  fromCurrency: fromCurrency,
+  toCurrency: toCurrency,
+);
+
+/// The number of minor units (decimal places) for a currency code — for
+/// formatting amounts on the shell side (#3).
+Future<int> currencyMinorUnits({required String code}) =>
+    RustLib.instance.api.crateApiCurrencyMinorUnits(code: code);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>>
 abstract class Engine implements RustOpaqueInterface {
   Future<List<ActivityEntryDto>> activity();
@@ -22,6 +42,7 @@ abstract class Engine implements RustOpaqueInterface {
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
+    required String currency,
   });
 
   Future<void> deleteExpense({required String expenseId});
@@ -97,6 +118,11 @@ abstract class Engine implements RustOpaqueInterface {
   Future<void> setClosedPeriod({
     required String groupId,
     required PlatformInt64 untilMs,
+  });
+
+  Future<void> setGroupCurrency({
+    required String groupId,
+    required String currency,
   });
 
   Future<void> setMyName({required String name});

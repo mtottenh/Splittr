@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2018266118;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -772973136;
 
 // Section: executor
 
@@ -286,6 +286,7 @@ fn wire__crate__api__Engine_create_group_impl(
             >>::sse_decode(&mut deserializer);
             let api_name = <String>::sse_decode(&mut deserializer);
             let api_member_ids = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_currency = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -308,6 +309,7 @@ fn wire__crate__api__Engine_create_group_impl(
                             &*api_that_guard,
                             api_name,
                             api_member_ids,
+                            api_currency,
                         )?;
                         Ok(output_ok)
                     })(),
@@ -1278,6 +1280,63 @@ fn wire__crate__api__Engine_set_closed_period_impl(
         },
     )
 }
+fn wire__crate__api__Engine_set_group_currency_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Engine_set_group_currency",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>,
+            >>::sse_decode(&mut deserializer);
+            let api_group_id = <String>::sse_decode(&mut deserializer);
+            let api_currency = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::Engine::set_group_currency(
+                            &*api_that_guard,
+                            api_group_id,
+                            api_currency,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__Engine_set_my_name_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1384,6 +1443,81 @@ fn wire__crate__api__Engine_unlock_expense_impl(
         },
     )
 }
+fn wire__crate__api__convert_currency_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "convert_currency",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_amount_cents = <i64>::sse_decode(&mut deserializer);
+            let api_rate_micro = <i64>::sse_decode(&mut deserializer);
+            let api_from_currency = <String>::sse_decode(&mut deserializer);
+            let api_to_currency = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(crate::api::convert_currency(
+                        api_amount_cents,
+                        api_rate_micro,
+                        api_from_currency,
+                        api_to_currency,
+                    ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__currency_minor_units_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "currency_minor_units",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_code = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::currency_minor_units(api_code))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 
 // Section: related_funcs
 
@@ -1460,6 +1594,7 @@ impl SseDecode for crate::dto::ExpenseInput {
         let mut var_notes = <Option<String>>::sse_decode(deserializer);
         let mut var_dateMs = <i64>::sse_decode(deserializer);
         let mut var_draft = <bool>::sse_decode(deserializer);
+        let mut var_original = <Option<crate::dto::OriginalAmountDto>>::sse_decode(deserializer);
         return crate::dto::ExpenseInput {
             group_id: var_groupId,
             description: var_description,
@@ -1470,6 +1605,7 @@ impl SseDecode for crate::dto::ExpenseInput {
             notes: var_notes,
             date_ms: var_dateMs,
             draft: var_draft,
+            original: var_original,
         };
     }
 }
@@ -1482,12 +1618,14 @@ impl SseDecode for crate::dto::ExpenseViewDto {
         let mut var_groupName = <Option<String>>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_totalCents = <i64>::sse_decode(deserializer);
+        let mut var_currency = <String>::sse_decode(deserializer);
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_dateMs = <i64>::sse_decode(deserializer);
         let mut var_notes = <Option<String>>::sse_decode(deserializer);
         let mut var_myNetCents = <i64>::sse_decode(deserializer);
         let mut var_locked = <bool>::sse_decode(deserializer);
         let mut var_published = <bool>::sse_decode(deserializer);
+        let mut var_original = <Option<crate::dto::OriginalAmountDto>>::sse_decode(deserializer);
         let mut var_paidBy = <Vec<crate::dto::MemberAmountDto>>::sse_decode(deserializer);
         let mut var_splits = <Vec<crate::dto::MemberAmountDto>>::sse_decode(deserializer);
         return crate::dto::ExpenseViewDto {
@@ -1496,12 +1634,14 @@ impl SseDecode for crate::dto::ExpenseViewDto {
             group_name: var_groupName,
             description: var_description,
             total_cents: var_totalCents,
+            currency: var_currency,
             category: var_category,
             date_ms: var_dateMs,
             notes: var_notes,
             my_net_cents: var_myNetCents,
             locked: var_locked,
             published: var_published,
+            original: var_original,
             paid_by: var_paidBy,
             splits: var_splits,
         };
@@ -1543,6 +1683,7 @@ impl SseDecode for crate::dto::GroupDetailDto {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_currency = <String>::sse_decode(deserializer);
         let mut var_members = <Vec<crate::dto::MemberBalanceDto>>::sse_decode(deserializer);
         let mut var_expenses = <Vec<crate::dto::ExpenseViewDto>>::sse_decode(deserializer);
         let mut var_settlements = <Vec<crate::dto::SettlementViewDto>>::sse_decode(deserializer);
@@ -1550,6 +1691,7 @@ impl SseDecode for crate::dto::GroupDetailDto {
         return crate::dto::GroupDetailDto {
             id: var_id,
             name: var_name,
+            currency: var_currency,
             members: var_members,
             expenses: var_expenses,
             settlements: var_settlements,
@@ -1563,11 +1705,13 @@ impl SseDecode for crate::dto::GroupSummaryDto {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_currency = <String>::sse_decode(deserializer);
         let mut var_memberCount = <u32>::sse_decode(deserializer);
         let mut var_myNetCents = <i64>::sse_decode(deserializer);
         return crate::dto::GroupSummaryDto {
             id: var_id,
             name: var_name,
+            currency: var_currency,
             member_count: var_memberCount,
             my_net_cents: var_myNetCents,
         };
@@ -1786,6 +1930,31 @@ impl SseDecode for Option<crate::dto::GroupDetailDto> {
     }
 }
 
+impl SseDecode for Option<crate::dto::OriginalAmountDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::dto::OriginalAmountDto>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for crate::dto::OriginalAmountDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_currency = <String>::sse_decode(deserializer);
+        let mut var_amountCents = <i64>::sse_decode(deserializer);
+        let mut var_rateMicro = <i64>::sse_decode(deserializer);
+        return crate::dto::OriginalAmountDto {
+            currency: var_currency,
+            amount_cents: var_amountCents,
+            rate_micro: var_rateMicro,
+        };
+    }
+}
+
 impl SseDecode for crate::dto::Payer {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1951,8 +2120,11 @@ fn pde_ffi_dispatcher_primary_impl(
         21 => wire__crate__api__Engine_remove_member_impl(port, ptr, rust_vec_len, data_len),
         22 => wire__crate__api__Engine_rename_group_impl(port, ptr, rust_vec_len, data_len),
         23 => wire__crate__api__Engine_set_closed_period_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__Engine_set_my_name_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__Engine_unlock_expense_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__Engine_set_group_currency_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__Engine_set_my_name_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__Engine_unlock_expense_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__convert_currency_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__currency_minor_units_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2018,6 +2190,7 @@ impl flutter_rust_bridge::IntoDart for crate::dto::ExpenseInput {
             self.notes.into_into_dart().into_dart(),
             self.date_ms.into_into_dart().into_dart(),
             self.draft.into_into_dart().into_dart(),
+            self.original.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2037,12 +2210,14 @@ impl flutter_rust_bridge::IntoDart for crate::dto::ExpenseViewDto {
             self.group_name.into_into_dart().into_dart(),
             self.description.into_into_dart().into_dart(),
             self.total_cents.into_into_dart().into_dart(),
+            self.currency.into_into_dart().into_dart(),
             self.category.into_into_dart().into_dart(),
             self.date_ms.into_into_dart().into_dart(),
             self.notes.into_into_dart().into_dart(),
             self.my_net_cents.into_into_dart().into_dart(),
             self.locked.into_into_dart().into_dart(),
             self.published.into_into_dart().into_dart(),
+            self.original.into_into_dart().into_dart(),
             self.paid_by.into_into_dart().into_dart(),
             self.splits.into_into_dart().into_dart(),
         ]
@@ -2100,6 +2275,7 @@ impl flutter_rust_bridge::IntoDart for crate::dto::GroupDetailDto {
         [
             self.id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
+            self.currency.into_into_dart().into_dart(),
             self.members.into_into_dart().into_dart(),
             self.expenses.into_into_dart().into_dart(),
             self.settlements.into_into_dart().into_dart(),
@@ -2120,6 +2296,7 @@ impl flutter_rust_bridge::IntoDart for crate::dto::GroupSummaryDto {
         [
             self.id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
+            self.currency.into_into_dart().into_dart(),
             self.member_count.into_into_dart().into_dart(),
             self.my_net_cents.into_into_dart().into_dart(),
         ]
@@ -2169,6 +2346,25 @@ impl flutter_rust_bridge::IntoIntoDart<crate::dto::MemberBalanceDto>
     for crate::dto::MemberBalanceDto
 {
     fn into_into_dart(self) -> crate::dto::MemberBalanceDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::dto::OriginalAmountDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.currency.into_into_dart().into_dart(),
+            self.amount_cents.into_into_dart().into_dart(),
+            self.rate_micro.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::dto::OriginalAmountDto {}
+impl flutter_rust_bridge::IntoIntoDart<crate::dto::OriginalAmountDto>
+    for crate::dto::OriginalAmountDto
+{
+    fn into_into_dart(self) -> crate::dto::OriginalAmountDto {
         self
     }
 }
@@ -2327,6 +2523,7 @@ impl SseEncode for crate::dto::ExpenseInput {
         <Option<String>>::sse_encode(self.notes, serializer);
         <i64>::sse_encode(self.date_ms, serializer);
         <bool>::sse_encode(self.draft, serializer);
+        <Option<crate::dto::OriginalAmountDto>>::sse_encode(self.original, serializer);
     }
 }
 
@@ -2338,12 +2535,14 @@ impl SseEncode for crate::dto::ExpenseViewDto {
         <Option<String>>::sse_encode(self.group_name, serializer);
         <String>::sse_encode(self.description, serializer);
         <i64>::sse_encode(self.total_cents, serializer);
+        <String>::sse_encode(self.currency, serializer);
         <String>::sse_encode(self.category, serializer);
         <i64>::sse_encode(self.date_ms, serializer);
         <Option<String>>::sse_encode(self.notes, serializer);
         <i64>::sse_encode(self.my_net_cents, serializer);
         <bool>::sse_encode(self.locked, serializer);
         <bool>::sse_encode(self.published, serializer);
+        <Option<crate::dto::OriginalAmountDto>>::sse_encode(self.original, serializer);
         <Vec<crate::dto::MemberAmountDto>>::sse_encode(self.paid_by, serializer);
         <Vec<crate::dto::MemberAmountDto>>::sse_encode(self.splits, serializer);
     }
@@ -2373,6 +2572,7 @@ impl SseEncode for crate::dto::GroupDetailDto {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.currency, serializer);
         <Vec<crate::dto::MemberBalanceDto>>::sse_encode(self.members, serializer);
         <Vec<crate::dto::ExpenseViewDto>>::sse_encode(self.expenses, serializer);
         <Vec<crate::dto::SettlementViewDto>>::sse_encode(self.settlements, serializer);
@@ -2385,6 +2585,7 @@ impl SseEncode for crate::dto::GroupSummaryDto {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.currency, serializer);
         <u32>::sse_encode(self.member_count, serializer);
         <i64>::sse_encode(self.my_net_cents, serializer);
     }
@@ -2562,6 +2763,25 @@ impl SseEncode for Option<crate::dto::GroupDetailDto> {
         if let Some(value) = self {
             <crate::dto::GroupDetailDto>::sse_encode(value, serializer);
         }
+    }
+}
+
+impl SseEncode for Option<crate::dto::OriginalAmountDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::dto::OriginalAmountDto>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for crate::dto::OriginalAmountDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.currency, serializer);
+        <i64>::sse_encode(self.amount_cents, serializer);
+        <i64>::sse_encode(self.rate_micro, serializer);
     }
 }
 

@@ -16,6 +16,14 @@ pub struct Weight {
     pub weight: u64,
 }
 
+/// The pre-conversion amount of a foreign-currency expense (#3). `rate_micro` is
+/// the base-per-original rate scaled by 1e6 (1 EUR = 1.08 USD → 1_080_000).
+pub struct OriginalAmountDto {
+    pub currency: String,
+    pub amount_cents: i64,
+    pub rate_micro: i64,
+}
+
 /// How to divide an expense — the FFI mirror of the domain `SplitPlan`.
 pub enum SplitPlanDto {
     Equal { participants: Vec<String> },
@@ -36,11 +44,15 @@ pub struct ExpenseInput {
     pub date_ms: i64,
     /// Create as a private draft (ignored when editing). See #15.
     pub draft: bool,
+    /// Set when entered in a non-base currency; `total_cents`/`paid_by`/`split`
+    /// must already be the converted base-currency amounts (#3).
+    pub original: Option<OriginalAmountDto>,
 }
 
 pub struct GroupSummaryDto {
     pub id: String,
     pub name: String,
+    pub currency: String,
     pub member_count: u32,
     pub my_net_cents: i64,
 }
@@ -65,6 +77,8 @@ pub struct ExpenseViewDto {
     pub group_name: Option<String>,
     pub description: String,
     pub total_cents: i64,
+    /// Currency of `total_cents`/`paid_by`/`splits` (#3).
+    pub currency: String,
     pub category: String,
     pub date_ms: i64,
     pub notes: Option<String>,
@@ -72,6 +86,8 @@ pub struct ExpenseViewDto {
     pub locked: bool,
     /// `false` while the expense is a draft (not counted in balances). See #15.
     pub published: bool,
+    /// Present when entered in a different currency (#3).
+    pub original: Option<OriginalAmountDto>,
     pub paid_by: Vec<MemberAmountDto>,
     pub splits: Vec<MemberAmountDto>,
 }
@@ -94,6 +110,7 @@ pub struct TransferDto {
 pub struct GroupDetailDto {
     pub id: String,
     pub name: String,
+    pub currency: String,
     pub members: Vec<MemberBalanceDto>,
     pub expenses: Vec<ExpenseViewDto>,
     pub settlements: Vec<SettlementViewDto>,

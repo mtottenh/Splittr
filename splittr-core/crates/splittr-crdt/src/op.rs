@@ -25,6 +25,11 @@ pub enum OpKind {
         group: GroupId,
         name: String,
     },
+    /// The group's base/display currency — LWW (rule 2). Default `USD` (#3).
+    SetGroupCurrency {
+        group: GroupId,
+        currency: String,
+    },
     /// Membership register — LWW per `(group, user)` (rule 3).
     SetMembership {
         group: GroupId,

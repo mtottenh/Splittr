@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 
 use splittr_crdt::{
-    Cents, ExpenseFields, ExpenseId, GroupId, Op, OpKind, Projection, SettlementId, SiteId,
-    SplitPlan, UserId,
+    Cents, ExpenseFields, ExpenseId, GroupId, Op, OpKind, OriginalAmount, Projection, SettlementId,
+    SiteId, SplitPlan, UserId,
 };
 use splittr_store::{Applied, OpStore, Repository};
 use uuid::Uuid;
@@ -96,6 +96,15 @@ impl<S: OpStore> App<S> {
         })
     }
 
+    /// Set the group's base/display currency (#3).
+    pub fn set_group_currency(&mut self, group: &GroupId, currency: &str) -> Result<()> {
+        self.require_member(group)?;
+        self.commit(OpKind::SetGroupCurrency {
+            group: group.clone(),
+            currency: currency.to_string(),
+        })
+    }
+
     pub fn add_member(&mut self, group: &GroupId, user: &UserId) -> Result<()> {
         self.require_member(group)?;
         self.set_membership(group, user, true)
@@ -120,6 +129,7 @@ impl<S: OpStore> App<S> {
         category: &str,
         notes: Option<String>,
         date_ms: i64,
+        original: Option<OriginalAmount>,
     ) -> Result<ExpenseId> {
         self.create_expense(
             Some(group),
@@ -130,6 +140,7 @@ impl<S: OpStore> App<S> {
             category,
             notes,
             date_ms,
+            original,
             false,
         )
     }
@@ -146,6 +157,7 @@ impl<S: OpStore> App<S> {
         category: &str,
         notes: Option<String>,
         date_ms: i64,
+        original: Option<OriginalAmount>,
     ) -> Result<ExpenseId> {
         self.create_expense(
             Some(group),
@@ -156,6 +168,7 @@ impl<S: OpStore> App<S> {
             category,
             notes,
             date_ms,
+            original,
             true,
         )
     }
@@ -172,6 +185,7 @@ impl<S: OpStore> App<S> {
         category: &str,
         notes: Option<String>,
         date_ms: i64,
+        original: Option<OriginalAmount>,
         draft: bool,
     ) -> Result<ExpenseId> {
         self.create_expense(
@@ -183,6 +197,7 @@ impl<S: OpStore> App<S> {
             category,
             notes,
             date_ms,
+            original,
             draft,
         )
     }
@@ -200,12 +215,22 @@ impl<S: OpStore> App<S> {
         category: &str,
         notes: Option<String>,
         date_ms: i64,
+        original: Option<OriginalAmount>,
         draft: bool,
     ) -> Result<ExpenseId> {
         if let Some(group) = group {
             self.require_member(group)?;
         }
-        let fields = build_fields(description, paid_by, total, split, category, notes, date_ms)?;
+        let fields = build_fields(
+            description,
+            paid_by,
+            total,
+            split,
+            category,
+            notes,
+            date_ms,
+            original,
+        )?;
         let expense = ExpenseId::new(format!("expense:{}", Uuid::new_v4()));
         self.commit(OpKind::CreateExpense {
             expense: expense.clone(),
@@ -228,9 +253,19 @@ impl<S: OpStore> App<S> {
         category: &str,
         notes: Option<String>,
         date_ms: i64,
+        original: Option<OriginalAmount>,
     ) -> Result<()> {
         self.require_editable(expense)?;
-        let fields = build_fields(description, paid_by, total, split, category, notes, date_ms)?;
+        let fields = build_fields(
+            description,
+            paid_by,
+            total,
+            split,
+            category,
+            notes,
+            date_ms,
+            original,
+        )?;
         self.commit(OpKind::EditExpense {
             expense: expense.clone(),
             fields,
@@ -429,7 +464,9 @@ impl<S: OpStore> App<S> {
     }
 }
 
-/// Validate inputs and assemble a balanced [`ExpenseFields`].
+/// Validate inputs and assemble a balanced [`ExpenseFields`]. Amounts are in the
+/// expense's base currency; `original` carries the pre-conversion amount/rate for
+/// a foreign-currency expense (#3).
 #[allow(clippy::too_many_arguments)]
 fn build_fields(
     description: &str,
@@ -439,6 +476,7 @@ fn build_fields(
     category: &str,
     notes: Option<String>,
     date_ms: i64,
+    original: Option<OriginalAmount>,
 ) -> Result<ExpenseFields> {
     if total.0 <= 0 {
         return Err(AppError::Validation("total must be positive".into()));
@@ -462,6 +500,7 @@ fn build_fields(
     fields.category = category.to_string();
     fields.notes = notes;
     fields.date_ms = date_ms;
+    fields.original = original;
 
     if !fields.is_balanced() {
         return Err(AppError::Validation("splits must sum to the total".into()));

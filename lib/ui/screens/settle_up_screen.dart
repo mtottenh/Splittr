@@ -88,7 +88,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                 child: ListTile(
                   title: Text('${_name(t.from)} → ${_name(t.to)}'),
                   trailing: Text(
-                    Money.format(t.amountCents),
+                    Money.format(t.amountCents, code: widget.group.currency),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   onTap: () => _applySuggestion(t),
@@ -125,9 +125,9 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
             ],
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Amount',
-              prefixText: 'USD ',
+              prefixText: '${widget.group.currency} ',
             ),
           ),
           const SizedBox(height: 24),

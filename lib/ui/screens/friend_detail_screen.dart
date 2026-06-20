@@ -118,11 +118,11 @@ class _Body extends ConsumerWidget {
               title: Text(expense.description),
               subtitle: Text(
                 '${expense.groupName ?? "Non-group"} · '
-                '${Money.format(expense.totalCents)}',
+                '${Money.format(expense.totalCents, code: expense.currency)}',
               ),
               trailing: BalanceLabel(
                 netCents: expense.myNetCents,
-                currencyCode: 'USD',
+                currencyCode: expense.currency,
                 youArePositive: 'you lent',
                 youAreNegative: 'you borrowed',
                 settledText: '—',

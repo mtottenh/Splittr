@@ -48,6 +48,7 @@ pub struct Materializer {
     seen: BTreeSet<OpId>,
     group_created: BTreeSet<GroupId>,
     group_name: BTreeMap<GroupId, Stamped<String>>,
+    group_currency: BTreeMap<GroupId, Stamped<String>>,
     group_closed_until: BTreeMap<GroupId, Stamped<i64>>,
     profiles: BTreeMap<UserId, Stamped<String>>,
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
@@ -84,6 +85,13 @@ impl Materializer {
                     &mut self.group_name,
                     group.clone(),
                     stamp(hlc, name.clone()),
+                );
+            }
+            OpKind::SetGroupCurrency { group, currency } => {
+                lww(
+                    &mut self.group_currency,
+                    group.clone(),
+                    stamp(hlc, currency.clone()),
                 );
             }
             OpKind::SetMembership {
@@ -202,10 +210,16 @@ impl Materializer {
                 }
             }
             let closed_until_ms = self.group_closed_until.get(g).map(|s| s.value).unwrap_or(0);
+            let currency = self
+                .group_currency
+                .get(g)
+                .map(|s| s.value.clone())
+                .unwrap_or_else(|| "USD".to_string());
             groups.insert(
                 g.clone(),
                 GroupRecord {
                     name,
+                    currency,
                     members,
                     closed_until_ms,
                 },

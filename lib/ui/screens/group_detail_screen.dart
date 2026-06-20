@@ -230,7 +230,8 @@ class _ExpensesTab extends ConsumerWidget {
         if (entry.expense != null) {
           return _ExpenseTile(group: group, expense: entry.expense!);
         }
-        return _SettlementTile(settlement: entry.settlement!);
+        return _SettlementTile(
+            settlement: entry.settlement!, currency: group.currency);
       },
     );
   }
@@ -266,10 +267,14 @@ class _ExpenseTile extends StatelessWidget {
           ],
         ],
       ),
-      subtitle: Text('$payerNames paid ${Money.format(expense.totalCents)}'),
+      subtitle: Text(
+        '$payerNames paid '
+        '${Money.format(expense.totalCents, code: expense.currency)}'
+        '${_originalSuffix(expense)}',
+      ),
       trailing: BalanceLabel(
         netCents: expense.myNetCents,
-        currencyCode: 'USD',
+        currencyCode: expense.currency,
         youArePositive: 'you lent',
         youAreNegative: 'you borrowed',
         settledText: 'not involved',
@@ -281,6 +286,13 @@ class _ExpenseTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// "(€30.00)" suffix when the expense was entered in another currency (#3).
+  String _originalSuffix(ExpenseViewDto e) {
+    final o = e.original;
+    if (o == null) return '';
+    return ' (${Money.format(o.amountCents, code: o.currency)})';
   }
 }
 
@@ -307,8 +319,9 @@ class _DraftChip extends StatelessWidget {
 }
 
 class _SettlementTile extends ConsumerWidget {
-  const _SettlementTile({required this.settlement});
+  const _SettlementTile({required this.settlement, required this.currency});
   final SettlementViewDto settlement;
+  final String currency;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -322,7 +335,7 @@ class _SettlementTile extends ConsumerWidget {
       title: Text('${settlement.fromName} paid ${settlement.toName}'),
       subtitle: const Text('Payment · long-press to remove'),
       trailing: Text(
-        Money.format(settlement.amountCents),
+        Money.format(settlement.amountCents, code: currency),
         style: const TextStyle(
             color: AppTheme.positive, fontWeight: FontWeight.bold),
       ),
@@ -363,7 +376,7 @@ class _BalancesTab extends StatelessWidget {
               leading: const Icon(Icons.arrow_forward),
               title: Text('${_name(group, t.from)} → ${_name(group, t.to)}'),
               trailing: Text(
-                Money.format(t.amountCents),
+                Money.format(t.amountCents, code: group.currency),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -375,7 +388,7 @@ class _BalancesTab extends StatelessWidget {
             title: Text(m.name),
             trailing: BalanceLabel(
               netCents: m.netCents,
-              currencyCode: 'USD',
+              currencyCode: group.currency,
               youArePositive: 'gets back',
               youAreNegative: 'owes',
             ),

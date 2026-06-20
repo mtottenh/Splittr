@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -2018266118;
+  int get rustContentHash => -772973136;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -99,6 +99,7 @@ abstract class RustLibApi extends BaseApi {
     required Engine that,
     required String name,
     required List<String> memberIds,
+    required String currency,
   });
 
   Future<void> crateApiEngineDeleteExpense({
@@ -187,6 +188,12 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 untilMs,
   });
 
+  Future<void> crateApiEngineSetGroupCurrency({
+    required Engine that,
+    required String groupId,
+    required String currency,
+  });
+
   Future<void> crateApiEngineSetMyName({
     required Engine that,
     required String name,
@@ -196,6 +203,15 @@ abstract class RustLibApi extends BaseApi {
     required Engine that,
     required String expenseId,
   });
+
+  Future<PlatformInt64> crateApiConvertCurrency({
+    required PlatformInt64 amountCents,
+    required PlatformInt64 rateMicro,
+    required String fromCurrency,
+    required String toCurrency,
+  });
+
+  Future<int> crateApiCurrencyMinorUnits({required String code});
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Engine;
 
@@ -363,6 +379,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required Engine that,
     required String name,
     required List<String> memberIds,
+    required String currency,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -374,6 +391,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_String(name, serializer);
           sse_encode_list_String(memberIds, serializer);
+          sse_encode_String(currency, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -386,7 +404,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiEngineCreateGroupConstMeta,
-        argValues: [that, name, memberIds],
+        argValues: [that, name, memberIds, currency],
         apiImpl: this,
       ),
     );
@@ -394,7 +412,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineCreateGroupConstMeta => const TaskConstMeta(
     debugName: "Engine_create_group",
-    argNames: ["that", "name", "memberIds"],
+    argNames: ["that", "name", "memberIds", "currency"],
   );
 
   @override
@@ -1063,6 +1081,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiEngineSetGroupCurrency({
+    required Engine that,
+    required String groupId,
+    required String currency,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(groupId, serializer);
+          sse_encode_String(currency, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineSetGroupCurrencyConstMeta,
+        argValues: [that, groupId, currency],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineSetGroupCurrencyConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_set_group_currency",
+        argNames: ["that", "groupId", "currency"],
+      );
+
+  @override
   Future<void> crateApiEngineSetMyName({
     required Engine that,
     required String name,
@@ -1079,7 +1137,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1116,7 +1174,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1136,6 +1194,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         debugName: "Engine_unlock_expense",
         argNames: ["that", "expenseId"],
       );
+
+  @override
+  Future<PlatformInt64> crateApiConvertCurrency({
+    required PlatformInt64 amountCents,
+    required PlatformInt64 rateMicro,
+    required String fromCurrency,
+    required String toCurrency,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(amountCents, serializer);
+          sse_encode_i_64(rateMicro, serializer);
+          sse_encode_String(fromCurrency, serializer);
+          sse_encode_String(toCurrency, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConvertCurrencyConstMeta,
+        argValues: [amountCents, rateMicro, fromCurrency, toCurrency],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConvertCurrencyConstMeta => const TaskConstMeta(
+    debugName: "convert_currency",
+    argNames: ["amountCents", "rateMicro", "fromCurrency", "toCurrency"],
+  );
+
+  @override
+  Future<int> crateApiCurrencyMinorUnits({required String code}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(code, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCurrencyMinorUnitsConstMeta,
+        argValues: [code],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCurrencyMinorUnitsConstMeta => const TaskConstMeta(
+    debugName: "currency_minor_units",
+    argNames: ["code"],
+  );
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Engine => wire
@@ -1222,11 +1348,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OriginalAmountDto dco_decode_box_autoadd_original_amount_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_original_amount_dto(raw);
+  }
+
+  @protected
   ExpenseInput dco_decode_expense_input(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return ExpenseInput(
       groupId: dco_decode_opt_String(arr[0]),
       description: dco_decode_String(arr[1]),
@@ -1237,6 +1369,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       notes: dco_decode_opt_String(arr[6]),
       dateMs: dco_decode_i_64(arr[7]),
       draft: dco_decode_bool(arr[8]),
+      original: dco_decode_opt_box_autoadd_original_amount_dto(arr[9]),
     );
   }
 
@@ -1244,22 +1377,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ExpenseViewDto dco_decode_expense_view_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return ExpenseViewDto(
       id: dco_decode_String(arr[0]),
       groupId: dco_decode_opt_String(arr[1]),
       groupName: dco_decode_opt_String(arr[2]),
       description: dco_decode_String(arr[3]),
       totalCents: dco_decode_i_64(arr[4]),
-      category: dco_decode_String(arr[5]),
-      dateMs: dco_decode_i_64(arr[6]),
-      notes: dco_decode_opt_String(arr[7]),
-      myNetCents: dco_decode_i_64(arr[8]),
-      locked: dco_decode_bool(arr[9]),
-      published: dco_decode_bool(arr[10]),
-      paidBy: dco_decode_list_member_amount_dto(arr[11]),
-      splits: dco_decode_list_member_amount_dto(arr[12]),
+      currency: dco_decode_String(arr[5]),
+      category: dco_decode_String(arr[6]),
+      dateMs: dco_decode_i_64(arr[7]),
+      notes: dco_decode_opt_String(arr[8]),
+      myNetCents: dco_decode_i_64(arr[9]),
+      locked: dco_decode_bool(arr[10]),
+      published: dco_decode_bool(arr[11]),
+      original: dco_decode_opt_box_autoadd_original_amount_dto(arr[12]),
+      paidBy: dco_decode_list_member_amount_dto(arr[13]),
+      splits: dco_decode_list_member_amount_dto(arr[14]),
     );
   }
 
@@ -1294,15 +1429,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDetailDto dco_decode_group_detail_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return GroupDetailDto(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
-      members: dco_decode_list_member_balance_dto(arr[2]),
-      expenses: dco_decode_list_expense_view_dto(arr[3]),
-      settlements: dco_decode_list_settlement_view_dto(arr[4]),
-      settleUp: dco_decode_list_transfer_dto(arr[5]),
+      currency: dco_decode_String(arr[2]),
+      members: dco_decode_list_member_balance_dto(arr[3]),
+      expenses: dco_decode_list_expense_view_dto(arr[4]),
+      settlements: dco_decode_list_settlement_view_dto(arr[5]),
+      settleUp: dco_decode_list_transfer_dto(arr[6]),
     );
   }
 
@@ -1310,13 +1446,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupSummaryDto dco_decode_group_summary_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return GroupSummaryDto(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
-      memberCount: dco_decode_u_32(arr[2]),
-      myNetCents: dco_decode_i_64(arr[3]),
+      currency: dco_decode_String(arr[2]),
+      memberCount: dco_decode_u_32(arr[3]),
+      myNetCents: dco_decode_i_64(arr[4]),
     );
   }
 
@@ -1446,6 +1583,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDetailDto? dco_decode_opt_box_autoadd_group_detail_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_group_detail_dto(raw);
+  }
+
+  @protected
+  OriginalAmountDto? dco_decode_opt_box_autoadd_original_amount_dto(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_original_amount_dto(raw);
+  }
+
+  @protected
+  OriginalAmountDto dco_decode_original_amount_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return OriginalAmountDto(
+      currency: dco_decode_String(arr[0]),
+      amountCents: dco_decode_i_64(arr[1]),
+      rateMicro: dco_decode_i_64(arr[2]),
+    );
   }
 
   @protected
@@ -1640,6 +1798,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OriginalAmountDto sse_decode_box_autoadd_original_amount_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_original_amount_dto(deserializer));
+  }
+
+  @protected
   ExpenseInput sse_decode_expense_input(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_groupId = sse_decode_opt_String(deserializer);
@@ -1651,6 +1817,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_notes = sse_decode_opt_String(deserializer);
     var var_dateMs = sse_decode_i_64(deserializer);
     var var_draft = sse_decode_bool(deserializer);
+    var var_original = sse_decode_opt_box_autoadd_original_amount_dto(
+      deserializer,
+    );
     return ExpenseInput(
       groupId: var_groupId,
       description: var_description,
@@ -1661,6 +1830,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       notes: var_notes,
       dateMs: var_dateMs,
       draft: var_draft,
+      original: var_original,
     );
   }
 
@@ -1672,12 +1842,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_groupName = sse_decode_opt_String(deserializer);
     var var_description = sse_decode_String(deserializer);
     var var_totalCents = sse_decode_i_64(deserializer);
+    var var_currency = sse_decode_String(deserializer);
     var var_category = sse_decode_String(deserializer);
     var var_dateMs = sse_decode_i_64(deserializer);
     var var_notes = sse_decode_opt_String(deserializer);
     var var_myNetCents = sse_decode_i_64(deserializer);
     var var_locked = sse_decode_bool(deserializer);
     var var_published = sse_decode_bool(deserializer);
+    var var_original = sse_decode_opt_box_autoadd_original_amount_dto(
+      deserializer,
+    );
     var var_paidBy = sse_decode_list_member_amount_dto(deserializer);
     var var_splits = sse_decode_list_member_amount_dto(deserializer);
     return ExpenseViewDto(
@@ -1686,12 +1860,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       groupName: var_groupName,
       description: var_description,
       totalCents: var_totalCents,
+      currency: var_currency,
       category: var_category,
       dateMs: var_dateMs,
       notes: var_notes,
       myNetCents: var_myNetCents,
       locked: var_locked,
       published: var_published,
+      original: var_original,
       paidBy: var_paidBy,
       splits: var_splits,
     );
@@ -1730,6 +1906,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
+    var var_currency = sse_decode_String(deserializer);
     var var_members = sse_decode_list_member_balance_dto(deserializer);
     var var_expenses = sse_decode_list_expense_view_dto(deserializer);
     var var_settlements = sse_decode_list_settlement_view_dto(deserializer);
@@ -1737,6 +1914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return GroupDetailDto(
       id: var_id,
       name: var_name,
+      currency: var_currency,
       members: var_members,
       expenses: var_expenses,
       settlements: var_settlements,
@@ -1749,11 +1927,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
+    var var_currency = sse_decode_String(deserializer);
     var var_memberCount = sse_decode_u_32(deserializer);
     var var_myNetCents = sse_decode_i_64(deserializer);
     return GroupSummaryDto(
       id: var_id,
       name: var_name,
+      currency: var_currency,
       memberCount: var_memberCount,
       myNetCents: var_myNetCents,
     );
@@ -1989,6 +2169,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OriginalAmountDto? sse_decode_opt_box_autoadd_original_amount_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_original_amount_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  OriginalAmountDto sse_decode_original_amount_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_currency = sse_decode_String(deserializer);
+    var var_amountCents = sse_decode_i_64(deserializer);
+    var var_rateMicro = sse_decode_i_64(deserializer);
+    return OriginalAmountDto(
+      currency: var_currency,
+      amountCents: var_amountCents,
+      rateMicro: var_rateMicro,
+    );
+  }
+
+  @protected
   Payer sse_decode_payer(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_userId = sse_decode_String(deserializer);
@@ -2192,6 +2400,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_original_amount_dto(
+    OriginalAmountDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_original_amount_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_expense_input(ExpenseInput self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.groupId, serializer);
@@ -2203,6 +2420,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.notes, serializer);
     sse_encode_i_64(self.dateMs, serializer);
     sse_encode_bool(self.draft, serializer);
+    sse_encode_opt_box_autoadd_original_amount_dto(self.original, serializer);
   }
 
   @protected
@@ -2216,12 +2434,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.groupName, serializer);
     sse_encode_String(self.description, serializer);
     sse_encode_i_64(self.totalCents, serializer);
+    sse_encode_String(self.currency, serializer);
     sse_encode_String(self.category, serializer);
     sse_encode_i_64(self.dateMs, serializer);
     sse_encode_opt_String(self.notes, serializer);
     sse_encode_i_64(self.myNetCents, serializer);
     sse_encode_bool(self.locked, serializer);
     sse_encode_bool(self.published, serializer);
+    sse_encode_opt_box_autoadd_original_amount_dto(self.original, serializer);
     sse_encode_list_member_amount_dto(self.paidBy, serializer);
     sse_encode_list_member_amount_dto(self.splits, serializer);
   }
@@ -2257,6 +2477,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
+    sse_encode_String(self.currency, serializer);
     sse_encode_list_member_balance_dto(self.members, serializer);
     sse_encode_list_expense_view_dto(self.expenses, serializer);
     sse_encode_list_settlement_view_dto(self.settlements, serializer);
@@ -2271,6 +2492,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
+    sse_encode_String(self.currency, serializer);
     sse_encode_u_32(self.memberCount, serializer);
     sse_encode_i_64(self.myNetCents, serializer);
   }
@@ -2485,6 +2707,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_original_amount_dto(
+    OriginalAmountDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_original_amount_dto(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_original_amount_dto(
+    OriginalAmountDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.currency, serializer);
+    sse_encode_i_64(self.amountCents, serializer);
+    sse_encode_i_64(self.rateMicro, serializer);
+  }
+
+  @protected
   void sse_encode_payer(Payer self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.userId, serializer);
@@ -2610,10 +2856,12 @@ class EngineImpl extends RustOpaque implements Engine {
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
+    required String currency,
   }) => RustLib.instance.api.crateApiEngineCreateGroup(
     that: this,
     name: name,
     memberIds: memberIds,
+    currency: currency,
   );
 
   Future<void> deleteExpense({required String expenseId}) => RustLib
@@ -2723,6 +2971,15 @@ class EngineImpl extends RustOpaque implements Engine {
     that: this,
     groupId: groupId,
     untilMs: untilMs,
+  );
+
+  Future<void> setGroupCurrency({
+    required String groupId,
+    required String currency,
+  }) => RustLib.instance.api.crateApiEngineSetGroupCurrency(
+    that: this,
+    groupId: groupId,
+    currency: currency,
   );
 
   Future<void> setMyName({required String name}) =>

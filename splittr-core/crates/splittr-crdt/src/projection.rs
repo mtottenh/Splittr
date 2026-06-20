@@ -47,6 +47,8 @@ impl Projection {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct GroupRecord {
     pub name: String,
+    /// Base/display currency (ISO-4217); defaults to `USD` (#3).
+    pub currency: String,
     pub members: BTreeSet<UserId>,
     /// Expenses dated at or before this are in a closed period and cannot be
     /// edited (#15). `0` means no period is closed.

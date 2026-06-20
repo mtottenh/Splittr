@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/categories.dart';
+import '../../core/currencies.dart';
 import '../../core/money.dart';
 import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
@@ -65,7 +66,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   bool _draft = false;
   final Set<String> _participants = {};
 
+  // --- multi-currency (#3) ---
+  late String _currency;
+  final _rate = TextEditingController();
+  int _currencyMinor = 2;
+  int _baseMinor = 2;
+  bool _loadingRate = false;
+
   bool get _isEditing => widget.existing != null;
+
+  /// The currency balances are kept in: the group's, or USD for a non-group.
+  String get _baseCurrency => widget.group?.currency ?? 'USD';
+
+  /// Whether the expense is being entered in a non-base currency.
+  bool get _foreign => _currency != _baseCurrency;
 
   /// The participant universe for this expense, resolved from whichever mode the
   /// screen was opened in.
@@ -125,12 +139,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (!_members.any((m) => m.userId == _payerId) && _members.isNotEmpty) {
       _payerId = _members.first.userId;
     }
+    _currency = _baseCurrency;
+    // Load minor-unit metadata (and a rate if the currency differs).
+    Future.microtask(_refreshCurrencyMeta);
   }
 
   @override
   void dispose() {
     _description.dispose();
     _amount.dispose();
+    _rate.dispose();
     for (final c in _splitInputs.values) {
       c.dispose();
     }
@@ -138,6 +156,43 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  /// Fetch the selected/base currencies' minor units and, when they differ, a
+  /// live exchange rate to pre-fill the (editable) rate field.
+  Future<void> _refreshCurrencyMeta() async {
+    final notifier = ref.read(appProvider.notifier);
+    final cm = await notifier.currencyMinorUnits(_currency);
+    final bm = await notifier.currencyMinorUnits(_baseCurrency);
+    double? rate;
+    if (_foreign) {
+      if (mounted) setState(() => _loadingRate = true);
+      rate = await ref
+          .read(exchangeRateProvider)
+          .rate(base: _currency, quote: _baseCurrency, on: _date);
+    }
+    if (!mounted) return;
+    setState(() {
+      _currencyMinor = cm;
+      _baseMinor = bm;
+      _loadingRate = false;
+      if (_foreign && rate != null) _rate.text = rate.toString();
+    });
+  }
+
+  int _pow10(int n) {
+    var r = 1;
+    for (var i = 0; i < n; i++) {
+      r *= 10;
+    }
+    return r;
+  }
+
+  /// Parse a decimal string into integer minor units for `minor` decimal places.
+  int? _parseMinor(String text, int minor) {
+    final v = double.tryParse(text.replaceAll(',', '').trim());
+    if (v == null || v.isNaN || v < 0) return null;
+    return (v * _pow10(minor)).round();
   }
 
   TextEditingController _inputFor(String userId) =>
@@ -193,20 +248,56 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final totalCents = Money.tryParseToCents(_amount.text);
-    if (totalCents == null || totalCents <= 0) {
-      _error('Enter a valid amount.');
-      return;
-    }
     if (_participants.isEmpty) {
       _error('Select at least one participant.');
       return;
     }
 
-    final payers = _buildPayers(totalCents);
+    final notifier = ref.read(appProvider.notifier);
+
+    // Resolve the base-currency total and (for a foreign currency) the original.
+    final int totalCents;
+    OriginalAmountDto? original;
+    if (_foreign) {
+      final orig = _parseMinor(_amount.text, _currencyMinor);
+      if (orig == null || orig <= 0) {
+        _error('Enter a valid amount.');
+        return;
+      }
+      final rate = double.tryParse(_rate.text.trim());
+      if (rate == null || rate <= 0) {
+        _error('Enter an exchange rate.');
+        return;
+      }
+      final rateMicro = (rate * 1000000).round();
+      totalCents = await notifier.convertCurrency(
+        amountCents: orig,
+        rateMicro: rateMicro,
+        from: _currency,
+        to: _baseCurrency,
+      );
+      original = OriginalAmountDto(
+        currency: _currency,
+        amountCents: orig,
+        rateMicro: rateMicro,
+      );
+    } else {
+      final t = _parseMinor(_amount.text, _baseMinor);
+      if (t == null || t <= 0) {
+        _error('Enter a valid amount.');
+        return;
+      }
+      totalCents = t;
+    }
+
+    // In foreign mode a single payer covers the converted total; the split is
+    // computed by the engine on the base total.
+    final payers =
+        _foreign ? [Payer(userId: _payerId, cents: totalCents)] : _buildPayers(totalCents);
     if (_multiplePayers &&
+        !_foreign &&
         payers.fold(0, (sum, p) => sum + p.cents) != totalCents) {
-      _error('Payments must total ${Money.format(totalCents)}.');
+      _error('Payments must total ${Money.format(totalCents, code: _baseCurrency)}.');
       return;
     }
 
@@ -219,9 +310,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       category: _categoryId,
       dateMs: _date.millisecondsSinceEpoch,
       draft: _isEditing ? false : _draft,
+      original: original,
     );
 
-    final notifier = ref.read(appProvider.notifier);
     try {
       if (_isEditing) {
         await notifier.editExpense(widget.existing!.id, input);
@@ -302,24 +393,55 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _amount,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _amount,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      prefixText: '$_currency ',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) =>
+                        (_parseMinor(v ?? '', _currencyMinor) ?? 0) <= 0
+                            ? 'Enter an amount'
+                            : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: kCurrencies.contains(_currency) ? _currency : null,
+                  hint: Text(_currency),
+                  items: [
+                    for (final c in {_baseCurrency, ...kCurrencies})
+                      DropdownMenuItem(value: c, child: Text(c)),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() {
+                      _currency = v;
+                      _rate.clear();
+                      // Foreign currencies use a single payer + proportional split.
+                      if (_foreign) {
+                        _multiplePayers = false;
+                        if (_splitMode == SplitMode.exact) {
+                          _splitMode = SplitMode.equal;
+                        }
+                      }
+                    });
+                    _refreshCurrencyMeta();
+                  },
+                ),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: 'USD ',
-              ),
-              onChanged: (_) => setState(() {}),
-              validator: (v) {
-                final cents = Money.tryParseToCents(v ?? '');
-                if (cents == null || cents <= 0) return 'Enter an amount';
-                return null;
-              },
             ),
+            if (_foreign) _foreignRateRow(),
             const SizedBox(height: 16),
             _payersSection(),
             const SizedBox(height: 8),
@@ -337,10 +459,14 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             Text('Split', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             SegmentedButton<SplitMode>(
-              segments: const [
-                ButtonSegment(value: SplitMode.equal, label: Text('=')),
-                ButtonSegment(value: SplitMode.exact, label: Text('1.23')),
-                ButtonSegment(value: SplitMode.shares, label: Text('Shares')),
+              segments: [
+                const ButtonSegment(value: SplitMode.equal, label: Text('=')),
+                // Exact amounts need a single currency; offered in base only.
+                if (!_foreign)
+                  const ButtonSegment(
+                      value: SplitMode.exact, label: Text('1.23')),
+                const ButtonSegment(
+                    value: SplitMode.shares, label: Text('Shares')),
               ],
               selected: {_splitMode},
               onSelectionChanged: (s) => setState(() => _splitMode = s.first),
@@ -368,6 +494,63 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
   }
 
+  /// Editable exchange rate (pre-filled from a live lookup) plus a converted
+  /// preview. The conversion itself runs in the engine (no duplicated maths).
+  Widget _foreignRateRow() {
+    final orig = _parseMinor(_amount.text, _currencyMinor);
+    final rate = double.tryParse(_rate.text.trim());
+    final bodySmall = Theme.of(context).textTheme.bodySmall;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('1 $_currency =')),
+              SizedBox(
+                width: 150,
+                child: TextField(
+                  controller: _rate,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: InputDecoration(
+                    isDense: true,
+                    suffixText: _baseCurrency,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (_loadingRate)
+            Text('Fetching rate…', style: bodySmall)
+          else if (orig != null && orig > 0 && rate != null && rate > 0)
+            FutureBuilder<int>(
+              future: ref.read(appProvider.notifier).convertCurrency(
+                    amountCents: orig,
+                    rateMicro: (rate * 1000000).round(),
+                    from: _currency,
+                    to: _baseCurrency,
+                  ),
+              builder: (context, snap) => Text(
+                snap.hasData
+                    ? '≈ ${Money.format(snap.data!, code: _baseCurrency)}'
+                    : '',
+                style: bodySmall,
+              ),
+            )
+          else
+            Text('Enter a rate to convert', style: bodySmall),
+        ],
+      ),
+    );
+  }
+
   /// "Paid by": a single payer (dropdown) or, in multi-payer mode, a per-person
   /// amount list that must sum to the total (the engine enforces it too).
   Widget _payersSection() {
@@ -389,18 +572,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               onChanged: (value) => setState(() => _payerId = value ?? _payerId),
             ),
           ),
-          TextButton(
-            onPressed: () => setState(() => _multiplePayers = true),
-            child: const Text('Multiple'),
-          ),
+          // Multi-payer needs a single currency; offered in base mode only.
+          if (!_foreign)
+            TextButton(
+              onPressed: () => setState(() => _multiplePayers = true),
+              child: const Text('Multiple'),
+            ),
         ],
       );
     }
 
-    final total = Money.tryParseToCents(_amount.text) ?? 0;
+    final total = _parseMinor(_amount.text, _baseMinor) ?? 0;
     final entered = _members.fold<int>(
       0,
-      (sum, m) => sum + (Money.tryParseToCents(_payerInput(m.userId).text) ?? 0),
+      (sum, m) => sum + (_parseMinor(_payerInput(m.userId).text, _baseMinor) ?? 0),
     );
     final balanced = entered == total;
     return Column(
@@ -432,9 +617,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                     ],
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       isDense: true,
-                      prefixText: 'USD ',
+                      prefixText: '$_baseCurrency ',
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -443,7 +628,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             ),
           ),
         Text(
-          'Entered ${Money.format(entered)} of ${Money.format(total)}',
+          'Entered ${Money.format(entered, code: _baseCurrency)} of '
+          '${Money.format(total, code: _baseCurrency)}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: balanced
                     ? Theme.of(context).colorScheme.onSurfaceVariant
@@ -455,7 +641,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   List<Widget> _participantRows() {
-    final totalCents = Money.tryParseToCents(_amount.text) ?? 0;
+    final entryMinor = _foreign ? _currencyMinor : _baseMinor;
+    final totalCents = _parseMinor(_amount.text, entryMinor) ?? 0;
     final equalShare =
         _participants.isEmpty ? 0 : totalCents ~/ _participants.length;
     return [
@@ -465,6 +652,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           selected: _participants.contains(m.userId),
           mode: _splitMode,
           controller: _inputFor(m.userId),
+          currency: _foreign ? _currency : _baseCurrency,
           equalShareCents: equalShare,
           onToggle: (checked) => setState(() {
             if (checked) {
@@ -495,6 +683,7 @@ class _ParticipantRow extends StatelessWidget {
     required this.selected,
     required this.mode,
     required this.controller,
+    required this.currency,
     required this.equalShareCents,
     required this.onToggle,
     required this.onInputChanged,
@@ -504,6 +693,7 @@ class _ParticipantRow extends StatelessWidget {
   final bool selected;
   final SplitMode mode;
   final TextEditingController controller;
+  final String currency;
   final int equalShareCents;
   final ValueChanged<bool> onToggle;
   final VoidCallback onInputChanged;
@@ -514,9 +704,9 @@ class _ParticipantRow extends StatelessWidget {
     if (selected) {
       switch (mode) {
         case SplitMode.equal:
-          trailing = Text(Money.format(equalShareCents));
+          trailing = Text(Money.format(equalShareCents, code: currency));
         case SplitMode.exact:
-          trailing = _input(suffix: 'USD');
+          trailing = _input(suffix: currency);
         case SplitMode.shares:
           trailing = _input(suffix: 'sh');
       }

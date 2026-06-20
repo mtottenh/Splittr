@@ -24,7 +24,7 @@ fn engine_runs_the_core_flow() {
     let me = engine.my_user_id();
     let bob = engine.add_person("Bob".into()).unwrap();
     let group = engine
-        .create_group("Trip".into(), vec![bob.clone()])
+        .create_group("Trip".into(), vec![bob.clone()], "USD".into())
         .unwrap();
 
     engine
@@ -43,6 +43,7 @@ fn engine_runs_the_core_flow() {
             notes: None,
             date_ms: 0,
             draft: false,
+            original: None,
         })
         .unwrap();
 
@@ -74,7 +75,7 @@ fn draft_publish_and_closed_period_through_the_ffi() {
     let me = engine.my_user_id();
     let bob = engine.add_person("Bob".into()).unwrap();
     let group = engine
-        .create_group("Trip".into(), vec![bob.clone()])
+        .create_group("Trip".into(), vec![bob.clone()], "USD".into())
         .unwrap();
 
     let input = |draft: bool, date_ms: i64| ExpenseInput {
@@ -92,6 +93,7 @@ fn draft_publish_and_closed_period_through_the_ffi() {
         notes: None,
         date_ms,
         draft,
+        original: None,
     };
 
     // A draft is in the ledger but doesn't move balances.
@@ -130,7 +132,9 @@ fn state_persists_across_reopen() {
 
     let group = {
         let engine = Engine::open(path.clone(), seed(), db_key(), 1).unwrap();
-        engine.create_group("Trip".into(), vec![]).unwrap()
+        engine
+            .create_group("Trip".into(), vec![], "USD".into())
+            .unwrap()
     };
 
     let reopened = Engine::open(path, seed(), db_key(), 1).unwrap();

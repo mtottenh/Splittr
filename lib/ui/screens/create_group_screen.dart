@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/currencies.dart';
 import '../../state/providers.dart';
 import '../widgets/add_person_dialog.dart';
 import '../widgets/user_avatar.dart';
@@ -18,6 +19,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _selectedMemberIds = <String>{};
+  String _currency = 'USD';
 
   @override
   void dispose() {
@@ -29,7 +31,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     if (!_formKey.currentState!.validate()) return;
     final id = await ref
         .read(appProvider.notifier)
-        .createGroup(_name.text.trim(), _selectedMemberIds.toList());
+        .createGroup(_name.text.trim(), _selectedMemberIds.toList(),
+            currency: _currency);
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
@@ -58,6 +61,16 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               ),
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Enter a group name' : null,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _currency,
+              decoration: const InputDecoration(labelText: 'Currency'),
+              items: [
+                for (final c in kCurrencies)
+                  DropdownMenuItem(value: c, child: Text(c)),
+              ],
+              onChanged: (v) => setState(() => _currency = v ?? 'USD'),
             ),
             const Divider(height: 32),
             Row(

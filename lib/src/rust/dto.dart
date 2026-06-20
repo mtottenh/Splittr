@@ -49,6 +49,10 @@ class ExpenseInput {
   /// Create as a private draft (ignored when editing). See #15.
   final bool draft;
 
+  /// Set when entered in a non-base currency; `total_cents`/`paid_by`/`split`
+  /// must already be the converted base-currency amounts (#3).
+  final OriginalAmountDto? original;
+
   const ExpenseInput({
     this.groupId,
     required this.description,
@@ -59,6 +63,7 @@ class ExpenseInput {
     this.notes,
     required this.dateMs,
     required this.draft,
+    this.original,
   });
 
   @override
@@ -71,7 +76,8 @@ class ExpenseInput {
       category.hashCode ^
       notes.hashCode ^
       dateMs.hashCode ^
-      draft.hashCode;
+      draft.hashCode ^
+      original.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -86,7 +92,8 @@ class ExpenseInput {
           category == other.category &&
           notes == other.notes &&
           dateMs == other.dateMs &&
-          draft == other.draft;
+          draft == other.draft &&
+          original == other.original;
 }
 
 class ExpenseViewDto {
@@ -97,6 +104,9 @@ class ExpenseViewDto {
   final String? groupName;
   final String description;
   final PlatformInt64 totalCents;
+
+  /// Currency of `total_cents`/`paid_by`/`splits` (#3).
+  final String currency;
   final String category;
   final PlatformInt64 dateMs;
   final String? notes;
@@ -105,6 +115,9 @@ class ExpenseViewDto {
 
   /// `false` while the expense is a draft (not counted in balances). See #15.
   final bool published;
+
+  /// Present when entered in a different currency (#3).
+  final OriginalAmountDto? original;
   final List<MemberAmountDto> paidBy;
   final List<MemberAmountDto> splits;
 
@@ -114,12 +127,14 @@ class ExpenseViewDto {
     this.groupName,
     required this.description,
     required this.totalCents,
+    required this.currency,
     required this.category,
     required this.dateMs,
     this.notes,
     required this.myNetCents,
     required this.locked,
     required this.published,
+    this.original,
     required this.paidBy,
     required this.splits,
   });
@@ -131,12 +146,14 @@ class ExpenseViewDto {
       groupName.hashCode ^
       description.hashCode ^
       totalCents.hashCode ^
+      currency.hashCode ^
       category.hashCode ^
       dateMs.hashCode ^
       notes.hashCode ^
       myNetCents.hashCode ^
       locked.hashCode ^
       published.hashCode ^
+      original.hashCode ^
       paidBy.hashCode ^
       splits.hashCode;
 
@@ -150,12 +167,14 @@ class ExpenseViewDto {
           groupName == other.groupName &&
           description == other.description &&
           totalCents == other.totalCents &&
+          currency == other.currency &&
           category == other.category &&
           dateMs == other.dateMs &&
           notes == other.notes &&
           myNetCents == other.myNetCents &&
           locked == other.locked &&
           published == other.published &&
+          original == other.original &&
           paidBy == other.paidBy &&
           splits == other.splits;
 }
@@ -216,6 +235,7 @@ class FriendDetailDto {
 class GroupDetailDto {
   final String id;
   final String name;
+  final String currency;
   final List<MemberBalanceDto> members;
   final List<ExpenseViewDto> expenses;
   final List<SettlementViewDto> settlements;
@@ -224,6 +244,7 @@ class GroupDetailDto {
   const GroupDetailDto({
     required this.id,
     required this.name,
+    required this.currency,
     required this.members,
     required this.expenses,
     required this.settlements,
@@ -234,6 +255,7 @@ class GroupDetailDto {
   int get hashCode =>
       id.hashCode ^
       name.hashCode ^
+      currency.hashCode ^
       members.hashCode ^
       expenses.hashCode ^
       settlements.hashCode ^
@@ -246,6 +268,7 @@ class GroupDetailDto {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
+          currency == other.currency &&
           members == other.members &&
           expenses == other.expenses &&
           settlements == other.settlements &&
@@ -255,19 +278,25 @@ class GroupDetailDto {
 class GroupSummaryDto {
   final String id;
   final String name;
+  final String currency;
   final int memberCount;
   final PlatformInt64 myNetCents;
 
   const GroupSummaryDto({
     required this.id,
     required this.name,
+    required this.currency,
     required this.memberCount,
     required this.myNetCents,
   });
 
   @override
   int get hashCode =>
-      id.hashCode ^ name.hashCode ^ memberCount.hashCode ^ myNetCents.hashCode;
+      id.hashCode ^
+      name.hashCode ^
+      currency.hashCode ^
+      memberCount.hashCode ^
+      myNetCents.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -276,6 +305,7 @@ class GroupSummaryDto {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
+          currency == other.currency &&
           memberCount == other.memberCount &&
           myNetCents == other.myNetCents;
 }
@@ -327,6 +357,33 @@ class MemberBalanceDto {
           userId == other.userId &&
           name == other.name &&
           netCents == other.netCents;
+}
+
+/// The pre-conversion amount of a foreign-currency expense (#3). `rate_micro` is
+/// the base-per-original rate scaled by 1e6 (1 EUR = 1.08 USD → 1_080_000).
+class OriginalAmountDto {
+  final String currency;
+  final PlatformInt64 amountCents;
+  final PlatformInt64 rateMicro;
+
+  const OriginalAmountDto({
+    required this.currency,
+    required this.amountCents,
+    required this.rateMicro,
+  });
+
+  @override
+  int get hashCode =>
+      currency.hashCode ^ amountCents.hashCode ^ rateMicro.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OriginalAmountDto &&
+          runtimeType == other.runtimeType &&
+          currency == other.currency &&
+          amountCents == other.amountCents &&
+          rateMicro == other.rateMicro;
 }
 
 /// A payer (or exact-amount) entry: who, and how many cents.

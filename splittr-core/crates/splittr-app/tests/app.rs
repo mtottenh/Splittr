@@ -42,6 +42,7 @@ fn create_group_add_expense_then_settle_up() {
         "travel",
         None,
         0,
+        None,
     )
     .unwrap();
 
@@ -85,6 +86,7 @@ fn group_summary_shows_my_balance_and_names() {
         "food",
         None,
         0,
+        None,
     )
     .unwrap();
 
@@ -120,6 +122,7 @@ fn weighted_split_through_the_app() {
         "food",
         None,
         0,
+        None,
     )
     .unwrap();
 
@@ -151,6 +154,7 @@ fn unbalanced_expense_is_rejected() {
             "general",
             None,
             0,
+            None,
         )
         .unwrap_err();
     assert!(matches!(err, AppError::Validation(_)));
@@ -197,6 +201,7 @@ fn non_member_cannot_add_expense_and_state_persists() {
             "general",
             None,
             0,
+            None,
         )
         .unwrap_err();
     assert!(matches!(err, AppError::NotAuthorized(_)));
@@ -222,6 +227,7 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
             "travel",
             None,
             0,
+            None,
         )
         .unwrap();
 
@@ -239,6 +245,7 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
         "travel",
         None,
         0,
+        None,
     );
     assert!(matches!(edit, Err(AppError::Validation(_))));
     assert!(matches!(
@@ -259,6 +266,7 @@ fn locked_expense_cannot_be_edited_or_deleted_until_unlocked() {
         "travel",
         None,
         0,
+        None,
     )
     .unwrap();
     assert_eq!(
@@ -289,6 +297,7 @@ fn draft_expense_is_excluded_then_counts_after_publish() {
             "food",
             None,
             0,
+            None,
         )
         .unwrap();
 
@@ -305,6 +314,46 @@ fn draft_expense_is_excluded_then_counts_after_publish() {
     assert!(detail.expenses[0].published);
     let my_net = detail.members.iter().find(|m| m.user == me).unwrap().net;
     assert_eq!(my_net, Cents(2000));
+}
+
+#[test]
+fn group_currency_and_foreign_expense_metadata() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Iceland", std::slice::from_ref(&bob))
+        .unwrap();
+    app.set_group_currency(&group, "EUR").unwrap();
+    assert_eq!(app.group_detail(&group).unwrap().currency, "EUR");
+
+    // A €30.00 expense entered originally as $32.40 (1 USD = 0.925926 EUR).
+    // The UI converts; here we store the base (EUR) amounts + the original.
+    let original = OriginalAmount {
+        currency: "USD".into(),
+        amount: Cents(3240),
+        rate_micro: 925_926,
+    };
+    app.add_expense(
+        &group,
+        "Hotel",
+        paid(&me, 3000),
+        Cents(3000),
+        SplitPlan::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        "travel",
+        None,
+        0,
+        Some(original.clone()),
+    )
+    .unwrap();
+
+    let view = app.group_detail(&group).unwrap().expenses.remove(0);
+    assert_eq!(view.currency, "EUR");
+    assert_eq!(view.total, Cents(3000));
+    assert_eq!(view.original, Some(original));
 }
 
 #[test]
@@ -325,6 +374,7 @@ fn non_group_expense_shows_in_friend_detail_and_overall_net() {
         "food",
         None,
         0,
+        None,
         false,
     )
     .unwrap();
@@ -368,6 +418,7 @@ fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
             "food",
             None,
             100,
+            None,
         )
         .unwrap();
 
@@ -384,6 +435,7 @@ fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
         "food",
         None,
         100,
+        None,
     );
     assert!(matches!(edit, Err(AppError::Validation(_))));
     assert!(matches!(
@@ -404,6 +456,7 @@ fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
         "food",
         None,
         100,
+        None,
     )
     .unwrap();
     assert_eq!(

@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use anyhow::{anyhow, Result};
 use splittr_app::{App, Cents, GroupId, Identity, RedbOpStore, SettlementId, SiteId, UserId};
 
-use crate::convert::{to_paid_by, to_split_plan};
+use crate::convert::{to_original, to_paid_by, to_split_plan};
 use crate::dto::{
     ActivityEntryDto, ExpenseInput, FriendBalanceDto, FriendDetailDto, GroupDetailDto,
     GroupSummaryDto,
@@ -63,13 +63,29 @@ impl Engine {
 
     // --- groups & members --------------------------------------------------
 
-    pub fn create_group(&self, name: String, member_ids: Vec<String>) -> Result<String> {
+    pub fn create_group(
+        &self,
+        name: String,
+        member_ids: Vec<String>,
+        currency: String,
+    ) -> Result<String> {
         let members: Vec<UserId> = member_ids.into_iter().map(UserId::new).collect();
-        Ok(self.lock().create_group(&name, &members)?.0)
+        let mut app = self.lock();
+        let group = app.create_group(&name, &members)?;
+        if currency != "USD" {
+            app.set_group_currency(&group, &currency)?;
+        }
+        Ok(group.0)
     }
 
     pub fn rename_group(&self, group_id: String, name: String) -> Result<()> {
         self.lock().rename_group(&GroupId::new(group_id), &name)?;
+        Ok(())
+    }
+
+    pub fn set_group_currency(&self, group_id: String, currency: String) -> Result<()> {
+        self.lock()
+            .set_group_currency(&GroupId::new(group_id), &currency)?;
         Ok(())
     }
 
@@ -91,6 +107,7 @@ impl Engine {
         let paid_by = to_paid_by(input.paid_by);
         let plan = to_split_plan(input.split);
         let total = Cents(input.total_cents);
+        let original = to_original(input.original);
         let mut app = self.lock();
         let id = match input.group_id {
             Some(group_id) => {
@@ -105,6 +122,7 @@ impl Engine {
                         &input.category,
                         input.notes,
                         input.date_ms,
+                        original,
                     )?
                 } else {
                     app.add_expense(
@@ -116,6 +134,7 @@ impl Engine {
                         &input.category,
                         input.notes,
                         input.date_ms,
+                        original,
                     )?
                 }
             }
@@ -127,6 +146,7 @@ impl Engine {
                 &input.category,
                 input.notes,
                 input.date_ms,
+                original,
                 input.draft,
             )?,
         };
@@ -153,6 +173,7 @@ impl Engine {
     pub fn edit_expense(&self, expense_id: String, input: ExpenseInput) -> Result<()> {
         let paid_by = to_paid_by(input.paid_by);
         let plan = to_split_plan(input.split);
+        let original = to_original(input.original);
         self.lock().edit_expense(
             &splittr_app::ExpenseId::new(expense_id),
             &input.description,
@@ -162,6 +183,7 @@ impl Engine {
             &input.category,
             input.notes,
             input.date_ms,
+            original,
         )?;
         Ok(())
     }
@@ -269,4 +291,28 @@ fn seed32(bytes: &[u8], what: &str) -> Result<[u8; 32]> {
     let mut seed = [0u8; 32];
     seed.copy_from_slice(bytes);
     Ok(seed)
+}
+
+/// Convert `amount_cents` from `from_currency` to `to_currency` at `rate_micro`
+/// (target units per source unit, ×1e6). Integer-safe; the money math lives in
+/// Rust so the shell never duplicates it (#3).
+pub fn convert_currency(
+    amount_cents: i64,
+    rate_micro: i64,
+    from_currency: String,
+    to_currency: String,
+) -> i64 {
+    splittr_app::convert(
+        Cents(amount_cents),
+        rate_micro as u64,
+        splittr_app::minor_units(&from_currency),
+        splittr_app::minor_units(&to_currency),
+    )
+    .0
+}
+
+/// The number of minor units (decimal places) for a currency code — for
+/// formatting amounts on the shell side (#3).
+pub fn currency_minor_units(code: String) -> u32 {
+    splittr_app::minor_units(&code)
 }

@@ -5,14 +5,33 @@ use std::collections::BTreeMap;
 
 use splittr_app::{
     ActivityEntry, Cents, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
-    MemberAmount, MemberBalance, SettlementView, SplitPlan, Transfer, UserId,
+    MemberAmount, MemberBalance, OriginalAmount, SettlementView, SplitPlan, Transfer, UserId,
 };
 
 use crate::dto::{
     ActivityEntryDto, ExpenseViewDto, FriendBalanceDto, FriendDetailDto, GroupDetailDto,
-    GroupSummaryDto, MemberAmountDto, MemberBalanceDto, Payer, SettlementViewDto, SplitPlanDto,
-    TransferDto, Weight,
+    GroupSummaryDto, MemberAmountDto, MemberBalanceDto, OriginalAmountDto, Payer,
+    SettlementViewDto, SplitPlanDto, TransferDto, Weight,
 };
+
+/// FFI → domain conversion for the optional foreign-currency metadata (#3).
+pub(crate) fn to_original(dto: Option<OriginalAmountDto>) -> Option<OriginalAmount> {
+    dto.map(|o| OriginalAmount {
+        currency: o.currency,
+        amount: Cents(o.amount_cents),
+        rate_micro: o.rate_micro as u64,
+    })
+}
+
+impl From<OriginalAmount> for OriginalAmountDto {
+    fn from(o: OriginalAmount) -> Self {
+        OriginalAmountDto {
+            currency: o.currency,
+            amount_cents: o.amount.0,
+            rate_micro: o.rate_micro as i64,
+        }
+    }
+}
 
 pub(crate) fn to_paid_by(payers: Vec<Payer>) -> BTreeMap<UserId, Cents> {
     payers
@@ -43,6 +62,7 @@ impl From<GroupSummary> for GroupSummaryDto {
         GroupSummaryDto {
             id: g.id.0,
             name: g.name,
+            currency: g.currency,
             member_count: g.member_count as u32,
             my_net_cents: g.my_net.0,
         }
@@ -77,12 +97,14 @@ impl From<ExpenseView> for ExpenseViewDto {
             group_name: e.group_name,
             description: e.description,
             total_cents: e.total.0,
+            currency: e.currency,
             category: e.category,
             date_ms: e.date_ms,
             notes: e.notes,
             my_net_cents: e.my_net.0,
             locked: e.locked,
             published: e.published,
+            original: e.original.map(Into::into),
             paid_by: e.paid_by.into_iter().map(Into::into).collect(),
             splits: e.splits.into_iter().map(Into::into).collect(),
         }
@@ -148,6 +170,7 @@ impl From<GroupDetail> for GroupDetailDto {
         GroupDetailDto {
             id: d.id.0,
             name: d.name,
+            currency: d.currency,
             members: d.members.into_iter().map(Into::into).collect(),
             expenses: d.expenses.into_iter().map(Into::into).collect(),
             settlements: d.settlements.into_iter().map(Into::into).collect(),

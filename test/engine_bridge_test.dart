@@ -36,7 +36,7 @@ void main() {
     await engine.setMyName(name: 'Me');
     final me = await engine.myUserId();
     final bob = await engine.addPerson(name: 'Bob');
-    final group = await engine.createGroup(name: 'Trip', memberIds: [bob]);
+    final group = await engine.createGroup(name: 'Trip', memberIds: [bob], currency: 'USD');
 
     await engine.addExpense(
       input: ExpenseInput(
@@ -85,7 +85,7 @@ void main() {
     expect(await engine.myName(), 'Me');
     final me = await engine.myUserId();
     final bob = await engine.addPerson(name: 'Bob');
-    final group = await engine.createGroup(name: 'Trip', memberIds: [bob]);
+    final group = await engine.createGroup(name: 'Trip', memberIds: [bob], currency: 'USD');
 
     await engine.addExpense(
       input: ExpenseInput(
@@ -136,6 +136,59 @@ void main() {
     expect((await engine.groupDetail(groupId: group))!.settlements, hasLength(1));
   });
 
+  test('multi-currency: convert + stored base amount with original metadata',
+      () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_fx');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: List.filled(32, 41),
+      dbKey: List.filled(32, 43),
+      site: BigInt.from(6),
+    );
+    await engine.setMyName(name: 'Me');
+    final me = await engine.myUserId();
+    final bob = await engine.addPerson(name: 'Bob');
+    final group =
+        await engine.createGroup(name: 'Iceland', memberIds: [bob], currency: 'EUR');
+
+    // €30.00 entered as $32.40 at 1 USD = 0.925926 EUR.
+    final baseCents = await convertCurrency(
+      amountCents: 3240,
+      rateMicro: 925926,
+      fromCurrency: 'USD',
+      toCurrency: 'EUR',
+    );
+    expect(baseCents, 3000);
+
+    await engine.addExpense(
+      input: ExpenseInput(
+        groupId: group,
+        description: 'Hotel',
+        paidBy: [Payer(userId: me, cents: baseCents)],
+        totalCents: baseCents,
+        split: SplitPlanDto.equal(participants: [me, bob]),
+        category: 'travel',
+        dateMs: 0,
+        draft: false,
+        original: const OriginalAmountDto(
+          currency: 'USD',
+          amountCents: 3240,
+          rateMicro: 925926,
+        ),
+      ),
+    );
+
+    final detail = (await engine.groupDetail(groupId: group))!;
+    expect(detail.currency, 'EUR');
+    final expense = detail.expenses.single;
+    expect(expense.currency, 'EUR');
+    expect(expense.totalCents, 3000);
+    expect(expense.original?.currency, 'USD');
+    expect(expense.original?.amountCents, 3240);
+  });
+
   test('multiple payers are attributed through the FFI', () async {
     final tmp = Directory.systemTemp.createTempSync('splittr_bridge_mp');
     addTearDown(() => tmp.deleteSync(recursive: true));
@@ -149,7 +202,7 @@ void main() {
     await engine.setMyName(name: 'Me');
     final me = await engine.myUserId();
     final bob = await engine.addPerson(name: 'Bob');
-    final group = await engine.createGroup(name: 'Trip', memberIds: [bob]);
+    final group = await engine.createGroup(name: 'Trip', memberIds: [bob], currency: 'USD');
 
     // A $60 dinner: I paid $40, Bob paid $20; split equally ($30 each).
     await engine.addExpense(
@@ -230,7 +283,7 @@ void main() {
     await engine.setMyName(name: 'Me');
     final me = await engine.myUserId();
     final bob = await engine.addPerson(name: 'Bob');
-    final group = await engine.createGroup(name: 'Trip', memberIds: [bob]);
+    final group = await engine.createGroup(name: 'Trip', memberIds: [bob], currency: 'USD');
 
     ExpenseInput input({required bool draft, required int dateMs}) => ExpenseInput(
           groupId: group,

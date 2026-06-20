@@ -116,6 +116,7 @@ mod tests {
             group,
             GroupRecord {
                 name: "g".into(),
+                currency: "USD".into(),
                 members: members.iter().map(|m| uid(m)).collect::<BTreeSet<_>>(),
                 closed_until_ms: 0,
             },
