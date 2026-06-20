@@ -26,6 +26,12 @@ dependencies:
   # and the at-rest DB encryption key (#6/#22).
   flutter_secure_storage: ^9.2.2
 
+  # Biometric / device-credential app lock (#22).
+  local_auth: ^2.3.0
+
+  # SHA-256 for hashing the app-lock PIN before storing it (#22).
+  crypto: ^3.0.6
+
   # Stable, collision-resistant identifiers for entities.
   uuid: ^4.5.1
 
