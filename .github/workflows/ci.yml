@@ -38,6 +38,13 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter analyze
+      # Clean-break guard (#1): the v1 Dart JSON store must stay deleted.
+      - name: Assert v1 JSON store is gone
+        run: |
+          if grep -rnE "FilePersistence|AppRepository|splittr_data\.json" lib test; then
+            echo "::error::v1 JSON store references found; the Rust store is the source of truth"
+            exit 1
+          fi
       # The bridge test host-loads the engine cdylib, so build it first.
       - run: cargo build -p splittr-ffi
         working-directory: splittr-core
