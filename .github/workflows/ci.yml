@@ -29,9 +29,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: splittr-core
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
       - run: flutter pub get
       - run: flutter analyze
+      # The bridge test host-loads the engine cdylib, so build it first.
+      - run: cargo build -p splittr-ffi
+        working-directory: splittr-core
       - run: flutter test
+
+  linux-app:
+    name: Linux desktop build (engine bundled)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: splittr-core
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter config --enable-linux-desktop
+      - run: flutter pub get
+      - run: flutter build linux --debug
+      # Fail if the engine did not get bundled next to the Flutter library.
+      - run: test -f build/linux/x64/debug/bundle/lib/libsplittr_ffi.so
