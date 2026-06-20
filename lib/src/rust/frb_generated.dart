@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1368594426;
+  int get rustContentHash => -2018266118;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -147,9 +147,18 @@ abstract class RustLibApi extends BaseApi {
     required BigInt site,
   });
 
+  Future<PlatformInt64> crateApiEngineOverallNetCents({required Engine that});
+
   Future<void> crateApiEnginePublishExpense({
     required Engine that,
     required String expenseId,
+  });
+
+  Future<String> crateApiEngineRecordNonGroupSettlement({
+    required Engine that,
+    required String from,
+    required String to,
+    required PlatformInt64 amountCents,
   });
 
   Future<String> crateApiEngineRecordSettlement({
@@ -778,6 +787,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<PlatformInt64> crateApiEngineOverallNetCents({required Engine that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineOverallNetCentsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineOverallNetCentsConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_overall_net_cents",
+        argNames: ["that"],
+      );
+
+  @override
   Future<void> crateApiEnginePublishExpense({
     required Engine that,
     required String expenseId,
@@ -794,7 +837,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -813,6 +856,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "Engine_publish_expense",
         argNames: ["that", "expenseId"],
+      );
+
+  @override
+  Future<String> crateApiEngineRecordNonGroupSettlement({
+    required Engine that,
+    required String from,
+    required String to,
+    required PlatformInt64 amountCents,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(from, serializer);
+          sse_encode_String(to, serializer);
+          sse_encode_i_64(amountCents, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineRecordNonGroupSettlementConstMeta,
+        argValues: [that, from, to, amountCents],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineRecordNonGroupSettlementConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_record_non_group_settlement",
+        argNames: ["that", "from", "to", "amountCents"],
       );
 
   @override
@@ -838,7 +923,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -878,7 +963,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -917,7 +1002,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -956,7 +1041,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -994,7 +1079,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1031,7 +1116,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1143,7 +1228,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 9)
       throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ExpenseInput(
-      groupId: dco_decode_String(arr[0]),
+      groupId: dco_decode_opt_String(arr[0]),
       description: dco_decode_String(arr[1]),
       paidBy: dco_decode_list_payer(arr[2]),
       totalCents: dco_decode_i_64(arr[3]),
@@ -1163,8 +1248,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return ExpenseViewDto(
       id: dco_decode_String(arr[0]),
-      groupId: dco_decode_String(arr[1]),
-      groupName: dco_decode_String(arr[2]),
+      groupId: dco_decode_opt_String(arr[1]),
+      groupName: dco_decode_opt_String(arr[2]),
       description: dco_decode_String(arr[3]),
       totalCents: dco_decode_i_64(arr[4]),
       category: dco_decode_String(arr[5]),
@@ -1557,7 +1642,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   ExpenseInput sse_decode_expense_input(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_groupId = sse_decode_String(deserializer);
+    var var_groupId = sse_decode_opt_String(deserializer);
     var var_description = sse_decode_String(deserializer);
     var var_paidBy = sse_decode_list_payer(deserializer);
     var var_totalCents = sse_decode_i_64(deserializer);
@@ -1583,8 +1668,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ExpenseViewDto sse_decode_expense_view_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
-    var var_groupId = sse_decode_String(deserializer);
-    var var_groupName = sse_decode_String(deserializer);
+    var var_groupId = sse_decode_opt_String(deserializer);
+    var var_groupName = sse_decode_opt_String(deserializer);
     var var_description = sse_decode_String(deserializer);
     var var_totalCents = sse_decode_i_64(deserializer);
     var var_category = sse_decode_String(deserializer);
@@ -2109,7 +2194,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_expense_input(ExpenseInput self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.groupId, serializer);
+    sse_encode_opt_String(self.groupId, serializer);
     sse_encode_String(self.description, serializer);
     sse_encode_list_payer(self.paidBy, serializer);
     sse_encode_i_64(self.totalCents, serializer);
@@ -2127,8 +2212,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
-    sse_encode_String(self.groupId, serializer);
-    sse_encode_String(self.groupName, serializer);
+    sse_encode_opt_String(self.groupId, serializer);
+    sse_encode_opt_String(self.groupName, serializer);
     sse_encode_String(self.description, serializer);
     sse_encode_i_64(self.totalCents, serializer);
     sse_encode_String(self.category, serializer);
@@ -2577,11 +2662,28 @@ class EngineImpl extends RustOpaque implements Engine {
   Future<String> myUserId() =>
       RustLib.instance.api.crateApiEngineMyUserId(that: this);
 
+  /// The local user's overall net across all expenses/settlements, including
+  /// non-group ones (#31). Positive = owed to you.
+  Future<PlatformInt64> overallNetCents() =>
+      RustLib.instance.api.crateApiEngineOverallNetCents(that: this);
+
   /// Publish a draft expense so it counts toward balances (#15).
   Future<void> publishExpense({required String expenseId}) => RustLib
       .instance
       .api
       .crateApiEnginePublishExpense(that: this, expenseId: expenseId);
+
+  /// Record a non-group (friend-to-friend) payment (#31).
+  Future<String> recordNonGroupSettlement({
+    required String from,
+    required String to,
+    required PlatformInt64 amountCents,
+  }) => RustLib.instance.api.crateApiEngineRecordNonGroupSettlement(
+    that: this,
+    from: from,
+    to: to,
+    amountCents: amountCents,
+  );
 
   Future<String> recordSettlement({
     required String groupId,

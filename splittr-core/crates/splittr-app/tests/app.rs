@@ -308,6 +308,45 @@ fn draft_expense_is_excluded_then_counts_after_publish() {
 }
 
 #[test]
+fn non_group_expense_shows_in_friend_detail_and_overall_net() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+
+    // No group: I pay 20.00, split equally with Bob.
+    app.add_non_group_expense(
+        "Coffee runs",
+        paid(&me, 2000),
+        Cents(2000),
+        SplitPlan::Equal {
+            participants: vec![me.clone(), bob.clone()],
+        },
+        "food",
+        None,
+        0,
+        false,
+    )
+    .unwrap();
+
+    // Overall net + pairwise friend balance both reflect it.
+    assert_eq!(app.overall_net(), Cents(1000));
+    let bob_friend = app.friends().into_iter().find(|f| f.user == bob).unwrap();
+    assert_eq!(bob_friend.net, Cents(1000));
+
+    // It surfaces in the friend detail with no group name, and there are no groups.
+    let detail = app.friend_detail(&bob).unwrap();
+    assert_eq!(detail.shared.len(), 1);
+    assert_eq!(detail.shared[0].group, None);
+    assert!(app.groups().is_empty());
+
+    // A non-group settlement clears the balance.
+    app.record_non_group_settlement(&bob, &me, Cents(1000))
+        .unwrap();
+    assert_eq!(app.overall_net(), Cents(0));
+}
+
+#[test]
 fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
     let mut app = new_app();
     let me = app.me().clone();

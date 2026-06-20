@@ -33,7 +33,8 @@ pub enum OpKind {
     },
     CreateExpense {
         expense: ExpenseId,
-        group: GroupId,
+        /// `None` for a non-group (friend-to-friend) expense (#31).
+        group: Option<GroupId>,
         fields: ExpenseFields,
         /// Created as a private draft — excluded from balances until published.
         draft: bool,
@@ -68,7 +69,8 @@ pub enum OpKind {
     },
     RecordSettlement {
         settlement: SettlementId,
-        group: GroupId,
+        /// `None` for a non-group (friend-to-friend) settlement (#31).
+        group: Option<GroupId>,
         from: UserId,
         to: UserId,
         amount: Cents,

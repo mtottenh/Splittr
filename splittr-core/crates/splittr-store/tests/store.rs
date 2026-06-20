@@ -52,7 +52,7 @@ fn sample_ops() -> Vec<Op> {
             3,
             OpKind::CreateExpense {
                 expense: ExpenseId::from("e0"),
-                group: g.clone(),
+                group: Some(g.clone()),
                 fields: ExpenseFields::single_payer(
                     a.clone(),
                     Cents(1000),
@@ -65,7 +65,7 @@ fn sample_ops() -> Vec<Op> {
             4,
             OpKind::RecordSettlement {
                 settlement: SettlementId::from("s0"),
-                group: g,
+                group: Some(g),
                 from: b,
                 to: a,
                 amount: Cents(200),
@@ -204,7 +204,7 @@ fn arb_ops() -> impl Strategy<Value = Vec<Op>> {
             let payer = UserId::new(format!("u{p}"));
             OpKind::CreateExpense {
                 expense: ExpenseId::new(format!("e{e}")),
-                group: GroupId::new(format!("g{g}")),
+                group: Some(GroupId::new(format!("g{g}"))),
                 fields: ExpenseFields::single_payer(
                     payer.clone(),
                     Cents(t),

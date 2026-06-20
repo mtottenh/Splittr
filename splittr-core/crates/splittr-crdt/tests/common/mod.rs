@@ -82,7 +82,7 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
             .prop_map(|(e, g, payer_mask, split_mask, total, draft)| {
                 OpKind::CreateExpense {
                     expense: expense(e),
-                    group: group(g),
+                    group: Some(group(g)),
                     fields: fields(total, &payer_mask, &split_mask),
                     draft,
                 }
@@ -110,7 +110,7 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
         (0u8..4, 0u8..2, 0u8..4, 0u8..4, 1i64..100_000).prop_map(|(s, g, from, to, amount)| {
             OpKind::RecordSettlement {
                 settlement: settlement(s),
-                group: group(g),
+                group: Some(group(g)),
                 from: user(from),
                 to: user(to),
                 amount: Cents(amount),

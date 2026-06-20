@@ -28,6 +28,7 @@ class AppNotifier extends AsyncNotifier<AppData> {
     return AppData(
       myUserId: await engine.myUserId(),
       myName: name,
+      overallNetCents: await engine.overallNetCents(),
       groups: await engine.groups(),
       friends: await engine.friends(),
       activity: await engine.activity(),
@@ -80,6 +81,17 @@ class AppNotifier extends AsyncNotifier<AppData> {
   }) =>
       _mutate((e) => e.recordSettlement(
             groupId: groupId,
+            from: from,
+            to: to,
+            amountCents: amountCents,
+          ));
+
+  Future<void> recordNonGroupSettlement({
+    required String from,
+    required String to,
+    required int amountCents,
+  }) =>
+      _mutate((e) => e.recordNonGroupSettlement(
             from: from,
             to: to,
             amountCents: amountCents,

@@ -25,7 +25,8 @@ pub enum SplitPlanDto {
 
 /// Input for adding or editing an expense.
 pub struct ExpenseInput {
-    pub group_id: String,
+    /// `None` for a non-group (friend-to-friend) expense (#31). Ignored on edit.
+    pub group_id: Option<String>,
     pub description: String,
     pub paid_by: Vec<Payer>,
     pub total_cents: i64,
@@ -59,8 +60,9 @@ pub struct MemberAmountDto {
 
 pub struct ExpenseViewDto {
     pub id: String,
-    pub group_id: String,
-    pub group_name: String,
+    /// `None` for a non-group (friend-to-friend) expense (#31).
+    pub group_id: Option<String>,
+    pub group_name: Option<String>,
     pub description: String,
     pub total_cents: i64,
     pub category: String,

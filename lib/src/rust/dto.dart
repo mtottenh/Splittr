@@ -36,7 +36,8 @@ class ActivityEntryDto {
 
 /// Input for adding or editing an expense.
 class ExpenseInput {
-  final String groupId;
+  /// `None` for a non-group (friend-to-friend) expense (#31). Ignored on edit.
+  final String? groupId;
   final String description;
   final List<Payer> paidBy;
   final PlatformInt64 totalCents;
@@ -49,7 +50,7 @@ class ExpenseInput {
   final bool draft;
 
   const ExpenseInput({
-    required this.groupId,
+    this.groupId,
     required this.description,
     required this.paidBy,
     required this.totalCents,
@@ -90,8 +91,10 @@ class ExpenseInput {
 
 class ExpenseViewDto {
   final String id;
-  final String groupId;
-  final String groupName;
+
+  /// `None` for a non-group (friend-to-friend) expense (#31).
+  final String? groupId;
+  final String? groupName;
   final String description;
   final PlatformInt64 totalCents;
   final String category;
@@ -107,8 +110,8 @@ class ExpenseViewDto {
 
   const ExpenseViewDto({
     required this.id,
-    required this.groupId,
-    required this.groupName,
+    this.groupId,
+    this.groupName,
     required this.description,
     required this.totalCents,
     required this.category,

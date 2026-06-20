@@ -122,7 +122,7 @@ impl<S: OpStore> App<S> {
         date_ms: i64,
     ) -> Result<ExpenseId> {
         self.create_expense(
-            group,
+            Some(group),
             description,
             paid_by,
             total,
@@ -148,7 +148,7 @@ impl<S: OpStore> App<S> {
         date_ms: i64,
     ) -> Result<ExpenseId> {
         self.create_expense(
-            group,
+            Some(group),
             description,
             paid_by,
             total,
@@ -160,11 +160,11 @@ impl<S: OpStore> App<S> {
         )
     }
 
-    /// Shared create path for active and draft expenses (one implementation).
+    /// Add a non-group (friend-to-friend) expense — no group membership is
+    /// required; the participants are implied by `paid_by`/`split` (#31).
     #[allow(clippy::too_many_arguments)]
-    fn create_expense(
+    pub fn add_non_group_expense(
         &mut self,
-        group: &GroupId,
         description: &str,
         paid_by: BTreeMap<UserId, Cents>,
         total: Cents,
@@ -174,12 +174,42 @@ impl<S: OpStore> App<S> {
         date_ms: i64,
         draft: bool,
     ) -> Result<ExpenseId> {
-        self.require_member(group)?;
+        self.create_expense(
+            None,
+            description,
+            paid_by,
+            total,
+            split,
+            category,
+            notes,
+            date_ms,
+            draft,
+        )
+    }
+
+    /// Shared create path for group/non-group and active/draft expenses
+    /// (one implementation — DRY).
+    #[allow(clippy::too_many_arguments)]
+    fn create_expense(
+        &mut self,
+        group: Option<&GroupId>,
+        description: &str,
+        paid_by: BTreeMap<UserId, Cents>,
+        total: Cents,
+        split: SplitPlan,
+        category: &str,
+        notes: Option<String>,
+        date_ms: i64,
+        draft: bool,
+    ) -> Result<ExpenseId> {
+        if let Some(group) = group {
+            self.require_member(group)?;
+        }
         let fields = build_fields(description, paid_by, total, split, category, notes, date_ms)?;
         let expense = ExpenseId::new(format!("expense:{}", Uuid::new_v4()));
         self.commit(OpKind::CreateExpense {
             expense: expense.clone(),
-            group: group.clone(),
+            group: group.cloned(),
             fields,
             draft,
         })?;
@@ -253,7 +283,30 @@ impl<S: OpStore> App<S> {
         to: &UserId,
         amount: Cents,
     ) -> Result<SettlementId> {
-        self.require_member(group)?;
+        self.create_settlement(Some(group), from, to, amount)
+    }
+
+    /// Record a non-group (friend-to-friend) settlement (#31).
+    pub fn record_non_group_settlement(
+        &mut self,
+        from: &UserId,
+        to: &UserId,
+        amount: Cents,
+    ) -> Result<SettlementId> {
+        self.create_settlement(None, from, to, amount)
+    }
+
+    /// Shared settlement path for group and non-group payments (one impl — DRY).
+    fn create_settlement(
+        &mut self,
+        group: Option<&GroupId>,
+        from: &UserId,
+        to: &UserId,
+        amount: Cents,
+    ) -> Result<SettlementId> {
+        if let Some(group) = group {
+            self.require_member(group)?;
+        }
         if from == to {
             return Err(AppError::Validation("payer and payee must differ".into()));
         }
@@ -263,7 +316,7 @@ impl<S: OpStore> App<S> {
         let settlement = SettlementId::new(format!("settlement:{}", Uuid::new_v4()));
         self.commit(OpKind::RecordSettlement {
             settlement: settlement.clone(),
-            group: group.clone(),
+            group: group.cloned(),
             from: from.clone(),
             to: to.clone(),
             amount,
@@ -281,6 +334,11 @@ impl<S: OpStore> App<S> {
 
     pub fn groups(&self) -> Vec<GroupSummary> {
         query::groups(&self.repo.projection(), self.me())
+    }
+
+    /// The local user's overall net across all expenses/settlements (#31).
+    pub fn overall_net(&self) -> Cents {
+        query::overall_net(&self.repo.projection(), self.me())
     }
 
     pub fn group_detail(&self, group: &GroupId) -> Option<GroupDetail> {
@@ -343,9 +401,10 @@ impl<S: OpStore> App<S> {
         if rec.locked {
             return Err(AppError::Validation("expense is locked".into()));
         }
-        let closed_until = projection
-            .groups
-            .get(&rec.group)
+        let closed_until = rec
+            .group
+            .as_ref()
+            .and_then(|g| projection.groups.get(g))
             .map(|g| g.closed_until_ms)
             .unwrap_or(0);
         if closed_until > 0 && rec.fields.date_ms <= closed_until {
@@ -359,7 +418,10 @@ impl<S: OpStore> App<S> {
             None => return Err(AppError::NotFound(format!("expense {expense}"))),
             Some(rec) => rec.group.clone(),
         };
-        self.require_member(&group)?;
+        // Group expenses require membership; non-group ones are personal.
+        if let Some(group) = &group {
+            self.require_member(group)?;
+        }
         self.commit(OpKind::SetExpenseLock {
             expense: expense.clone(),
             locked,

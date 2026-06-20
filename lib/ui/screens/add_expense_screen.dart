@@ -19,12 +19,25 @@ extension on SplitMode {
       };
 }
 
-/// Create or edit an expense within a group. Business rules (balancing, split
-/// maths) are enforced by the Rust engine — this screen just gathers input.
+/// Create or edit an expense. Works in three modes: within a [group], as a
+/// non-group expense with a friend ([friendId]/[friendName]), or editing an
+/// [existing] one. Business rules (balancing, split maths) are enforced by the
+/// Rust engine — this screen just gathers input.
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  const AddExpenseScreen({super.key, required this.group, this.existing});
+  const AddExpenseScreen({
+    super.key,
+    this.group,
+    this.friendId,
+    this.friendName,
+    this.existing,
+  });
 
-  final GroupDetailDto group;
+  /// Set for a group expense.
+  final GroupDetailDto? group;
+
+  /// Set (with [friendName]) for a new non-group expense with a friend (#31).
+  final String? friendId;
+  final String? friendName;
 
   /// When set, the screen edits this expense instead of creating one.
   final ExpenseViewDto? existing;
@@ -49,7 +62,38 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final Set<String> _participants = {};
 
   bool get _isEditing => widget.existing != null;
-  List<MemberBalanceDto> get _members => widget.group.members;
+
+  /// The participant universe for this expense, resolved from whichever mode the
+  /// screen was opened in.
+  late final List<MemberBalanceDto> _members = _resolveMembers();
+
+  /// The group this expense belongs to, or null for a non-group expense.
+  String? get _groupId => widget.group?.id;
+
+  List<MemberBalanceDto> _resolveMembers() {
+    final data = ref.read(appProvider).requireValue;
+    if (widget.group != null) return widget.group!.members;
+    if (widget.existing != null) {
+      // Editing: reconstruct the participants from the stored expense.
+      final byId = <String, String>{};
+      for (final s in widget.existing!.splits) {
+        byId[s.userId] = s.name;
+      }
+      for (final p in widget.existing!.paidBy) {
+        byId[p.userId] = p.name;
+      }
+      return [
+        for (final e in byId.entries)
+          MemberBalanceDto(userId: e.key, name: e.value, netCents: 0),
+      ];
+    }
+    // New non-group expense: just me and the friend.
+    return [
+      MemberBalanceDto(userId: data.myUserId, name: data.myName, netCents: 0),
+      MemberBalanceDto(
+          userId: widget.friendId!, name: widget.friendName!, netCents: 0),
+    ];
+  }
 
   @override
   void initState() {
@@ -125,7 +169,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
 
     final input = ExpenseInput(
-      groupId: widget.group.id,
+      groupId: _groupId,
       description: _description.text.trim(),
       paidBy: [Payer(userId: _payerId, cents: totalCents)],
       totalCents: totalCents,

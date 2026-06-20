@@ -29,7 +29,7 @@ fn engine_runs_the_core_flow() {
 
     engine
         .add_expense(ExpenseInput {
-            group_id: group.clone(),
+            group_id: Some(group.clone()),
             description: "Hotel".into(),
             paid_by: vec![Payer {
                 user_id: me.clone(),
@@ -78,7 +78,7 @@ fn draft_publish_and_closed_period_through_the_ffi() {
         .unwrap();
 
     let input = |draft: bool, date_ms: i64| ExpenseInput {
-        group_id: group.clone(),
+        group_id: Some(group.clone()),
         description: "Dinner".into(),
         paid_by: vec![Payer {
             user_id: me.clone(),

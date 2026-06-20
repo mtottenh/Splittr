@@ -34,7 +34,7 @@ fn lww<K: Ord, V>(map: &mut BTreeMap<K, Stamped<V>>, key: K, incoming: Stamped<V
 }
 
 struct SettlementData {
-    group: GroupId,
+    group: Option<GroupId>,
     from: UserId,
     to: UserId,
     amount: Cents,
@@ -51,7 +51,7 @@ pub struct Materializer {
     group_closed_until: BTreeMap<GroupId, Stamped<i64>>,
     profiles: BTreeMap<UserId, Stamped<String>>,
     membership: BTreeMap<(GroupId, UserId), Stamped<bool>>,
-    expense_group: BTreeMap<ExpenseId, Stamped<GroupId>>,
+    expense_group: BTreeMap<ExpenseId, Stamped<Option<GroupId>>>,
     expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
     expense_locked: BTreeMap<ExpenseId, Stamped<bool>>,
     /// Grow-only set: an expense is published once any publish signal arrives

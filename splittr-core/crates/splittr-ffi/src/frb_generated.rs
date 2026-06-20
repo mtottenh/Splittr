@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1368594426;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2018266118;
 
 // Section: executor
 
@@ -883,6 +883,57 @@ fn wire__crate__api__Engine_open_impl(
         },
     )
 }
+fn wire__crate__api__Engine_overall_net_cents_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Engine_overall_net_cents",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Result::<_, ()>::Ok(crate::api::Engine::overall_net_cents(
+                        &*api_that_guard,
+                    ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__Engine_publish_expense_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -929,6 +980,65 @@ fn wire__crate__api__Engine_publish_expense_impl(
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
                             crate::api::Engine::publish_expense(&*api_that_guard, api_expense_id)?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__Engine_record_non_group_settlement_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "Engine_record_non_group_settlement",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>,
+            >>::sse_decode(&mut deserializer);
+            let api_from = <String>::sse_decode(&mut deserializer);
+            let api_to = <String>::sse_decode(&mut deserializer);
+            let api_amount_cents = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::Engine::record_non_group_settlement(
+                            &*api_that_guard,
+                            api_from,
+                            api_to,
+                            api_amount_cents,
+                        )?;
                         Ok(output_ok)
                     })(),
                 )
@@ -1341,7 +1451,7 @@ impl SseDecode for bool {
 impl SseDecode for crate::dto::ExpenseInput {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_groupId = <String>::sse_decode(deserializer);
+        let mut var_groupId = <Option<String>>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_paidBy = <Vec<crate::dto::Payer>>::sse_decode(deserializer);
         let mut var_totalCents = <i64>::sse_decode(deserializer);
@@ -1368,8 +1478,8 @@ impl SseDecode for crate::dto::ExpenseViewDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
-        let mut var_groupId = <String>::sse_decode(deserializer);
-        let mut var_groupName = <String>::sse_decode(deserializer);
+        let mut var_groupId = <Option<String>>::sse_decode(deserializer);
+        let mut var_groupName = <Option<String>>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_totalCents = <i64>::sse_decode(deserializer);
         let mut var_category = <String>::sse_decode(deserializer);
@@ -1829,13 +1939,20 @@ fn pde_ffi_dispatcher_primary_impl(
         14 => wire__crate__api__Engine_my_name_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__api__Engine_my_user_id_impl(port, ptr, rust_vec_len, data_len),
         16 => wire__crate__api__Engine_open_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__Engine_publish_expense_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__Engine_record_settlement_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__Engine_remove_member_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__Engine_rename_group_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__Engine_set_closed_period_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__Engine_set_my_name_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__Engine_unlock_expense_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__Engine_overall_net_cents_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__Engine_publish_expense_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__Engine_record_non_group_settlement_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        20 => wire__crate__api__Engine_record_settlement_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__Engine_remove_member_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__Engine_rename_group_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__Engine_set_closed_period_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__Engine_set_my_name_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__Engine_unlock_expense_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2201,7 +2318,7 @@ impl SseEncode for bool {
 impl SseEncode for crate::dto::ExpenseInput {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.group_id, serializer);
+        <Option<String>>::sse_encode(self.group_id, serializer);
         <String>::sse_encode(self.description, serializer);
         <Vec<crate::dto::Payer>>::sse_encode(self.paid_by, serializer);
         <i64>::sse_encode(self.total_cents, serializer);
@@ -2217,8 +2334,8 @@ impl SseEncode for crate::dto::ExpenseViewDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
-        <String>::sse_encode(self.group_id, serializer);
-        <String>::sse_encode(self.group_name, serializer);
+        <Option<String>>::sse_encode(self.group_id, serializer);
+        <Option<String>>::sse_encode(self.group_name, serializer);
         <String>::sse_encode(self.description, serializer);
         <i64>::sse_encode(self.total_cents, serializer);
         <String>::sse_encode(self.category, serializer);

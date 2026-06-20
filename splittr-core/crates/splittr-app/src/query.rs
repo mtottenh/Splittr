@@ -36,8 +36,9 @@ pub struct MemberAmount {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ExpenseView {
     pub id: ExpenseId,
-    pub group: GroupId,
-    pub group_name: String,
+    /// `None` for a non-group (friend-to-friend) expense (#31).
+    pub group: Option<GroupId>,
+    pub group_name: Option<String>,
     pub description: String,
     pub total: Cents,
     pub category: String,
@@ -128,11 +129,11 @@ fn expense_view(p: &Projection, me: &UserId, id: &ExpenseId, e: &ExpenseRecord) 
     ExpenseView {
         id: id.clone(),
         group: e.group.clone(),
-        group_name: p
-            .groups
-            .get(&e.group)
-            .map(|g| g.name.clone())
-            .unwrap_or_default(),
+        group_name: e
+            .group
+            .as_ref()
+            .and_then(|g| p.groups.get(g))
+            .map(|g| g.name.clone()),
         description: e.fields.description.clone(),
         total: e.fields.total,
         category: e.fields.category.clone(),
@@ -159,6 +160,12 @@ fn expense_view(p: &Projection, me: &UserId, id: &ExpenseId, e: &ExpenseRecord) 
 /// Most recent first; stable tie-break by id.
 fn by_recency(a: &ExpenseView, b: &ExpenseView) -> std::cmp::Ordering {
     b.date_ms.cmp(&a.date_ms).then_with(|| a.id.0.cmp(&b.id.0))
+}
+
+/// The current user's overall net across every expense and settlement —
+/// including non-group ones (#31). Positive = owed to you.
+pub fn overall_net(p: &Projection, me: &UserId) -> Cents {
+    net_balances(p).get(me).copied().unwrap_or(Cents::ZERO)
 }
 
 pub fn groups(p: &Projection, me: &UserId) -> Vec<GroupSummary> {

@@ -73,7 +73,7 @@ impl From<ExpenseView> for ExpenseViewDto {
     fn from(e: ExpenseView) -> Self {
         ExpenseViewDto {
             id: e.id.0,
-            group_id: e.group.0,
+            group_id: e.group.map(|g| g.0),
             group_name: e.group_name,
             description: e.description,
             total_cents: e.total.0,

@@ -30,13 +30,13 @@ impl Projection {
             expenses: self
                 .expenses
                 .iter()
-                .filter(|(_, e)| &e.group == group)
+                .filter(|(_, e)| e.group.as_ref() == Some(group))
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
             settlements: self
                 .settlements
                 .iter()
-                .filter(|(_, s)| &s.group == group)
+                .filter(|(_, s)| s.group.as_ref() == Some(group))
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
             aliases: self.aliases.clone(),
@@ -60,7 +60,8 @@ pub struct UserRecord {
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct ExpenseRecord {
-    pub group: GroupId,
+    /// `None` for a non-group (friend-to-friend) expense (#31).
+    pub group: Option<GroupId>,
     pub fields: ExpenseFields,
     /// Whether the expense is locked against further edits (#15).
     pub locked: bool,
@@ -71,7 +72,8 @@ pub struct ExpenseRecord {
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct SettlementRecord {
-    pub group: GroupId,
+    /// `None` for a non-group (friend-to-friend) settlement (#31).
+    pub group: Option<GroupId>,
     pub from: UserId,
     pub to: UserId,
     pub amount: Cents,

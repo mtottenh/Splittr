@@ -136,6 +136,46 @@ void main() {
     expect((await engine.groupDetail(groupId: group))!.settlements, hasLength(1));
   });
 
+  test('non-group expenses flow through the FFI', () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_ng');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: List.filled(32, 23),
+      dbKey: List.filled(32, 29),
+      site: BigInt.from(4),
+    );
+    await engine.setMyName(name: 'Me');
+    final me = await engine.myUserId();
+    final bob = await engine.addPerson(name: 'Bob');
+
+    // No group: I pay 20.00 split with Bob.
+    await engine.addExpense(
+      input: ExpenseInput(
+        groupId: null,
+        description: 'Coffee',
+        paidBy: [Payer(userId: me, cents: 2000)],
+        totalCents: 2000,
+        split: SplitPlanDto.equal(participants: [me, bob]),
+        category: 'food',
+        dateMs: 0,
+        draft: false,
+      ),
+    );
+
+    // It counts in the overall net + friend balance, but is in no group.
+    expect(await engine.overallNetCents(), 1000);
+    expect(await engine.groups(), isEmpty);
+    final friend = (await engine.friendDetail(userId: bob))!;
+    expect(friend.netCents, 1000);
+    expect(friend.shared.single.groupId, isNull);
+
+    // A non-group settlement clears it.
+    await engine.recordNonGroupSettlement(from: bob, to: me, amountCents: 1000);
+    expect(await engine.overallNetCents(), 0);
+  });
+
   test('draft, publish and closed-period flow through the FFI', () async {
     final tmp = Directory.systemTemp.createTempSync('splittr_bridge_lc');
     addTearDown(() => tmp.deleteSync(recursive: true));

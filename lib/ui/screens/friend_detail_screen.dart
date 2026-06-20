@@ -7,9 +7,10 @@ import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
 import '../widgets/balance_label.dart';
 import '../widgets/user_avatar.dart';
+import 'add_expense_screen.dart';
 
 /// Shows the running balance and shared history with a single friend, across
-/// every group the two share.
+/// every group the two share, plus non-group expenses (#31).
 class FriendDetailScreen extends ConsumerWidget {
   const FriendDetailScreen({super.key, required this.friendId});
   final String friendId;
@@ -17,9 +18,30 @@ class FriendDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(friendDetailProvider(friendId));
+    final name = detail.valueOrNull?.name ?? 'Friend';
 
     return Scaffold(
-      appBar: AppBar(title: Text(detail.valueOrNull?.name ?? 'Friend')),
+      appBar: AppBar(
+        title: Text(name),
+        actions: [
+          if ((detail.valueOrNull?.netCents ?? 0) != 0)
+            TextButton(
+              onPressed: () => _settleUp(context, ref, detail.value!),
+              child: const Text('Settle up'),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                AddExpenseScreen(friendId: friendId, friendName: name),
+            fullscreenDialog: true,
+          ),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Add expense'),
+      ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -32,14 +54,29 @@ class FriendDetailScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Record a payment that clears the friend balance (positive = they owe you,
+  /// so they pay you; negative = you pay them).
+  Future<void> _settleUp(
+      BuildContext context, WidgetRef ref, FriendDetailDto friend) async {
+    final me = ref.read(appProvider).requireValue.myUserId;
+    final net = friend.netCents;
+    final from = net > 0 ? friend.userId : me;
+    final to = net > 0 ? me : friend.userId;
+    await ref.read(appProvider.notifier).recordNonGroupSettlement(
+          from: from,
+          to: to,
+          amountCents: net.abs(),
+        );
+  }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({required this.friend});
   final FriendDetailDto friend;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final net = friend.netCents;
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
@@ -80,7 +117,8 @@ class _Body extends StatelessWidget {
                   child: Icon(Icons.receipt_long, size: 20)),
               title: Text(expense.description),
               subtitle: Text(
-                '${expense.groupName} · ${Money.format(expense.totalCents)}',
+                '${expense.groupName ?? "Non-group"} · '
+                '${Money.format(expense.totalCents)}',
               ),
               trailing: BalanceLabel(
                 netCents: expense.myNetCents,
@@ -88,6 +126,12 @@ class _Body extends StatelessWidget {
                 youArePositive: 'you lent',
                 youAreNegative: 'you borrowed',
                 settledText: '—',
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => AddExpenseScreen(existing: expense),
+                  fullscreenDialog: true,
+                ),
               ),
             ),
       ],

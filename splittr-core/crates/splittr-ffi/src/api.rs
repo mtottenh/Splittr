@@ -88,32 +88,47 @@ impl Engine {
     // --- expenses ----------------------------------------------------------
 
     pub fn add_expense(&self, input: ExpenseInput) -> Result<String> {
-        let group = GroupId::new(input.group_id);
         let paid_by = to_paid_by(input.paid_by);
         let plan = to_split_plan(input.split);
+        let total = Cents(input.total_cents);
         let mut app = self.lock();
-        let id = if input.draft {
-            app.add_draft_expense(
-                &group,
+        let id = match input.group_id {
+            Some(group_id) => {
+                let group = GroupId::new(group_id);
+                if input.draft {
+                    app.add_draft_expense(
+                        &group,
+                        &input.description,
+                        paid_by,
+                        total,
+                        plan,
+                        &input.category,
+                        input.notes,
+                        input.date_ms,
+                    )?
+                } else {
+                    app.add_expense(
+                        &group,
+                        &input.description,
+                        paid_by,
+                        total,
+                        plan,
+                        &input.category,
+                        input.notes,
+                        input.date_ms,
+                    )?
+                }
+            }
+            None => app.add_non_group_expense(
                 &input.description,
                 paid_by,
-                Cents(input.total_cents),
+                total,
                 plan,
                 &input.category,
                 input.notes,
                 input.date_ms,
-            )?
-        } else {
-            app.add_expense(
-                &group,
-                &input.description,
-                paid_by,
-                Cents(input.total_cents),
-                plan,
-                &input.category,
-                input.notes,
-                input.date_ms,
-            )?
+                input.draft,
+            )?,
         };
         Ok(id.0)
     }
@@ -189,6 +204,19 @@ impl Engine {
             .0)
     }
 
+    /// Record a non-group (friend-to-friend) payment (#31).
+    pub fn record_non_group_settlement(
+        &self,
+        from: String,
+        to: String,
+        amount_cents: i64,
+    ) -> Result<String> {
+        Ok(self
+            .lock()
+            .record_non_group_settlement(&UserId::new(from), &UserId::new(to), Cents(amount_cents))?
+            .0)
+    }
+
     pub fn delete_settlement(&self, settlement_id: String) -> Result<()> {
         self.lock()
             .delete_settlement(&SettlementId::new(settlement_id))?;
@@ -199,6 +227,12 @@ impl Engine {
 
     pub fn groups(&self) -> Vec<GroupSummaryDto> {
         self.lock().groups().into_iter().map(Into::into).collect()
+    }
+
+    /// The local user's overall net across all expenses/settlements, including
+    /// non-group ones (#31). Positive = owed to you.
+    pub fn overall_net_cents(&self) -> i64 {
+        self.lock().overall_net().0
     }
 
     pub fn group_detail(&self, group_id: String) -> Option<GroupDetailDto> {

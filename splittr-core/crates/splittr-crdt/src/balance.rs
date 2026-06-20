@@ -142,7 +142,7 @@ mod tests {
             })
             .collect();
         ExpenseRecord {
-            group: GroupId::new("g"),
+            group: Some(GroupId::new("g")),
             fields: ExpenseFields::new(paid, total, splits),
             locked: false,
             published: true,
@@ -151,7 +151,7 @@ mod tests {
 
     fn settlement(from: &str, to: &str, amount: i64) -> SettlementRecord {
         SettlementRecord {
-            group: GroupId::new("g"),
+            group: Some(GroupId::new("g")),
             from: uid(from),
             to: uid(to),
             amount: Cents(amount),

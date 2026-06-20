@@ -35,7 +35,7 @@ fn single_payer(payer: &str, total: i64, users: &[&str]) -> ExpenseFields {
 fn delete_wins_and_is_terminal_regardless_of_order_or_hlc() {
     let create = OpKind::CreateExpense {
         expense: ExpenseId::from("e0"),
-        group: GroupId::from("g0"),
+        group: Some(GroupId::from("g0")),
         fields: single_payer("a", 1000, &["a", "b"]),
         draft: false,
     };
@@ -64,7 +64,7 @@ fn expense_edit_is_whole_version_lww() {
         1,
         OpKind::CreateExpense {
             expense: ExpenseId::from("e0"),
-            group: GroupId::from("g0"),
+            group: Some(GroupId::from("g0")),
             fields: single_payer("a", 1000, &["a", "b"]),
             draft: false,
         },
@@ -142,7 +142,7 @@ fn alias_merge_preserves_balances_with_zero_change() {
     // a pays 10.00 split equally with b → a is owed 5.00, b owes 5.00.
     let expense = OpKind::CreateExpense {
         expense: ExpenseId::from("e0"),
-        group: GroupId::from("g0"),
+        group: Some(GroupId::from("g0")),
         fields: single_payer("a", 1000, &["a", "b"]),
         draft: false,
     };
@@ -171,7 +171,7 @@ fn settlement_void_removes_it() {
         0,
         OpKind::RecordSettlement {
             settlement: SettlementId::from("s0"),
-            group: GroupId::from("g0"),
+            group: Some(GroupId::from("g0")),
             from: UserId::from("b"),
             to: UserId::from("a"),
             amount: Cents(500),
@@ -200,7 +200,7 @@ fn multiple_payers_are_credited_correctly() {
         0,
         OpKind::CreateExpense {
             expense: ExpenseId::from("e0"),
-            group: GroupId::from("g0"),
+            group: Some(GroupId::from("g0")),
             fields,
             draft: false,
         },
@@ -217,7 +217,7 @@ fn settle_up_suggests_minimal_payments() {
         0,
         OpKind::CreateExpense {
             expense: ExpenseId::from("e0"),
-            group: GroupId::from("g0"),
+            group: Some(GroupId::from("g0")),
             fields: single_payer("a", 900, &["a", "b", "c"]),
             draft: false,
         },
@@ -235,7 +235,7 @@ fn expense_lock_is_lww_and_does_not_affect_presence() {
         0,
         OpKind::CreateExpense {
             expense: ExpenseId::from("e0"),
-            group: GroupId::from("g0"),
+            group: Some(GroupId::from("g0")),
             fields: single_payer("a", 1000, &["a", "b"]),
             draft: false,
         },
@@ -318,7 +318,7 @@ fn draft_expense_is_excluded_until_published() {
         0,
         OpKind::CreateExpense {
             expense: ExpenseId::from("e0"),
-            group: GroupId::from("g0"),
+            group: Some(GroupId::from("g0")),
             fields: single_payer("a", 1000, &["a", "b"]),
             draft: true,
         },
@@ -352,6 +352,32 @@ fn draft_expense_is_excluded_until_published() {
         published,
         "publish is order-independent"
     );
+}
+
+#[test]
+fn non_group_expense_counts_in_balances_but_not_in_any_group() {
+    // a non-group expense: a pays 10.00 split with b, no group attached.
+    let p = project(&[op(
+        0,
+        OpKind::CreateExpense {
+            expense: ExpenseId::from("e0"),
+            group: None,
+            fields: single_payer("a", 1000, &["a", "b"]),
+            draft: false,
+        },
+    )]);
+
+    // It moves balances globally.
+    let net = net_balances(&p);
+    assert_eq!(net.get(&UserId::from("a")), Some(&Cents(500)));
+    assert_eq!(net.get(&UserId::from("b")), Some(&Cents(-500)));
+
+    // But it is not scoped into any group.
+    assert!(
+        p.for_group(&GroupId::from("g0")).expenses.is_empty(),
+        "a non-group expense must not appear under any group"
+    );
+    assert_eq!(p.expenses[&ExpenseId::from("e0")].group, None);
 }
 
 #[test]

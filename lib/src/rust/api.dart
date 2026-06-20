@@ -67,8 +67,19 @@ abstract class Engine implements RustOpaqueInterface {
     site: site,
   );
 
+  /// The local user's overall net across all expenses/settlements, including
+  /// non-group ones (#31). Positive = owed to you.
+  Future<PlatformInt64> overallNetCents();
+
   /// Publish a draft expense so it counts toward balances (#15).
   Future<void> publishExpense({required String expenseId});
+
+  /// Record a non-group (friend-to-friend) payment (#31).
+  Future<String> recordNonGroupSettlement({
+    required String from,
+    required String to,
+    required PlatformInt64 amountCents,
+  });
 
   Future<String> recordSettlement({
     required String groupId,
