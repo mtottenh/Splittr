@@ -74,7 +74,7 @@ flowchart TB
 |---|---|---|---|
 | `splittr-domain` (Rust) | Value types (`Cents`, ids), split/balance/debt math, expense model | `serde`; pure, no I/O | #2, #3, #15, #19 |
 | `splittr-crdt` (Rust) | `Op`, `Hlc`, content-addressed ids, conflict resolution, projection fold | `splittr-domain`, `serde`, `postcard`, `blake3` | #1, #8, #15, #19 |
-| `splittr-crypto` (Rust) | Identity/device keypairs, signing/verify, group-key wrap & rotation | `ed25519-dalek`, `x25519-dalek`, `blake3` | #6, #14, #16 |
+| `splittr-crypto` (Rust) | Identity/device keypairs, signing/verify, AEAD at-rest, recovery phrase, root vault, pairing SAS | `ed25519-dalek`, `x25519-dalek`, `chacha20poly1305`, `argon2`, `bip39`, `blake3` | #6, #14, #16, #22, #34, #35 |
 | `splittr-store` (Rust) | Persist op-log + materialized projection; encryption at rest | trait `Store`; `rusqlite`/`redb` | #1, #22 |
 | `splittr-sync` (Rust) | Discovery, transport, set reconciliation, blob transfer | trait `Transport`; `iroh`, `iroh-gossip`, `iroh-blobs` | #9, #20 |
 | `splittr-app` (Rust) | Use-cases: command handling, authorization, query/subscription | composes the above | #19, #23 |
@@ -131,7 +131,7 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
 
 - **Identity** = an Ed25519 keypair; its public key is the permanent user id and
   doubles as the iroh `NodeId` (#6, ADR-0002).
-- **Devices** (#16, ADR-0005): **done (core)** — each device has its own keypair
+- **Devices** (#16, ADR-0005): **done** — each device has its own keypair
   + `site_id`. The identity (root) key signs `AuthorizeDevice` / `RevokeDevice`
   certificate ops; normal ops are signed by the device key. Trust is two-layer:
   *authenticity* is checked at ingestion (`Op::verify`), *authorization* is a
@@ -139,10 +139,22 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   while it is authorized and not yet revoked, so revocation converges regardless
   of arrival order. Devices with no certificate resolve to themselves (the
   first device self-enrols), keeping single-device data backward compatible.
+- **Root kept cold** (#34, ADR-0005): **done** — daily launches open the engine
+  with the root **locked** (`Engine::open_device_only`): only the device key is
+  loaded, so routine use never touches the root. Privileged actions (enrol/revoke)
+  briefly `unlock_root` from the identity seed and re-seal. The shell records the
+  identity *public* key after first run to drive subsequent device-only opens.
 - **Recovery** (#34, ADR-0005): **done (core)** — the root seed maps to a BIP39
-  24-word phrase (`splittr-crypto::recovery_phrase` / `seed_from_phrase`) so a
-  user can restore their identity onto a new device. Encrypted-on-primary root
-  storage and the restore-from-phrase UX are the remaining tail.
+  24-word phrase (`splittr-crypto::recovery_phrase` / `seed_from_phrase`); a
+  first-run **onboarding** gate creates a new identity (phrase shown once, behind
+  a "written it down" confirmation) or restores one from a phrase. `vault`
+  (`seal_seed`/`open_seed`, Argon2id + the at-rest AEAD) can additionally encrypt
+  the root under the app-lock passphrase; wiring that re-keying to the app lock is
+  the remaining tail.
+- **Enrolment SAS** (#35, ADR-0005): `splittr-crypto::PairingTranscript` derives
+  the device-pairing short authentication string (domain-separated BLAKE3 over
+  identity + both device keys + challenge) for a MITM-resistant out-of-band
+  compare; the QR/camera transport is the device-only remainder.
 - **E2E** (#14): per-group content key, wrapped per recipient (X25519), rotated
   on member/device removal. Relays see only ciphertext.
 - **At rest** (#22): **done** — the op-log is encrypted with XChaCha20-Poly1305
