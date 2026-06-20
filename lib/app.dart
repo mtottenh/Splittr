@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme.dart';
 import 'state/app_lock.dart';
+import 'state/engine.dart';
 import 'ui/lock_screen.dart';
 import 'ui/root_shell.dart';
+import 'ui/screens/onboarding_screen.dart';
 
 /// Root widget: wires up theming and the app-lock gate, then hands off to the
 /// bootstrapping shell.
@@ -19,8 +21,23 @@ class SplittrApp extends ConsumerWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const _LockGate(),
+      home: const _Bootstrap(),
     );
+  }
+}
+
+/// Routes a fresh install through onboarding (#34) before the lock gate / shell.
+class _Bootstrap extends ConsumerWidget {
+  const _Bootstrap();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(identityEstablishedProvider).when(
+          loading: () => const _Splash(),
+          error: (e, _) => Scaffold(body: Center(child: Text('Failed: $e'))),
+          data: (established) =>
+              established ? const _LockGate() : const OnboardingScreen(),
+        );
   }
 }
 

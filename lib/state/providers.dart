@@ -141,11 +141,28 @@ class AppNotifier extends AsyncNotifier<AppData> {
   Future<void> deleteSettlement(String settlementId) =>
       _mutate((e) => e.deleteSettlement(settlementId: settlementId));
 
-  Future<void> authorizeDevice(String deviceHex, int site) => _mutate(
+  Future<void> authorizeDevice(String deviceHex, int site) => _mutateAsRoot(
       (e) => e.authorizeDevice(deviceHex: deviceHex, site: BigInt.from(site)));
 
   Future<void> revokeDevice(String deviceHex) =>
-      _mutate((e) => e.revokeDevice(deviceHex: deviceHex));
+      _mutateAsRoot((e) => e.revokeDevice(deviceHex: deviceHex));
+
+  /// Run a privileged action that needs the identity (root) key: unlock the root
+  /// from the local identity seed, run it, then re-seal — so the root is only in
+  /// memory for the action itself (#34/ADR-0005).
+  Future<T> _mutateAsRoot<T>(Future<T> Function(Engine engine) action) =>
+      _mutate((engine) async {
+        final wasUnlocked = await engine.isRootUnlocked();
+        if (!wasUnlocked) {
+          final seed = await ref.read(identitySeedProvider.future);
+          await engine.unlockRoot(identitySeed: seed);
+        }
+        try {
+          return await action(engine);
+        } finally {
+          if (!wasUnlocked) await engine.lockRoot();
+        }
+      });
 }
 
 /// Detail for a single group. Re-fetches whenever [appProvider] changes (i.e.

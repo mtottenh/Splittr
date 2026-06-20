@@ -360,4 +360,66 @@ void main() {
     expect(phrase.split(' ').length, 24);
     expect(await seedFromRecoveryPhrase(phrase: phrase), idSeed);
   });
+
+  test('root lock/unlock gates privileged actions through the FFI (#34)',
+      () async {
+    // The device-only *reopen* path is covered by the Rust FFI test (it needs
+    // the first engine dropped to release the redb lock, which Dart can't force
+    // in-process); here we exercise the lock/unlock bindings the shell calls.
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_do');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    final idSeed = List.filled(32, 71);
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: idSeed,
+      deviceSeed: List.filled(32, 72),
+      dbKey: List.filled(32, 73),
+      site: BigInt.from(10),
+    );
+    await engine.setMyName(name: 'Me');
+
+    // The identity public key (persisted by the shell for device-only launches).
+    expect((await engine.identityPublic()).length, 64);
+
+    // Sealing the root gates privileged actions; daily ops keep working.
+    await engine.lockRoot();
+    expect(await engine.isRootUnlocked(), isFalse);
+    await engine.addPerson(name: 'Bob');
+    final second = '33' * 32;
+    await expectLater(
+      engine.authorizeDevice(deviceHex: second, site: BigInt.from(11)),
+      throwsA(anything),
+    );
+
+    // Unlocking from the identity seed re-enables them; re-sealing gates again.
+    await engine.unlockRoot(identitySeed: idSeed);
+    expect(await engine.isRootUnlocked(), isTrue);
+    await engine.authorizeDevice(deviceHex: second, site: BigInt.from(11));
+    expect((await engine.listDevices()).any((d) => d.device == second), isTrue);
+    await engine.lockRoot();
+    expect(await engine.isRootUnlocked(), isFalse);
+  });
+
+  test('root seed vault + pairing SAS through the FFI (#34/#35)', () async {
+    final seed = List.filled(32, 80);
+    final blob = await sealRootSeed(passphrase: '1234', seed: seed);
+    expect(blob, isNot(equals(seed)));
+    expect(await openRootSeed(passphrase: '1234', blob: blob), seed);
+    expect(await openRootSeed(passphrase: '0000', blob: blob), isNull);
+
+    final sas = await pairingShortAuthString(
+      identityHex: 'aa' * 32,
+      primaryDeviceHex: 'bb' * 32,
+      newDeviceHex: 'cc' * 32,
+      challenge: List.filled(32, 7),
+    );
+    expect(sas.replaceAll(' ', '').length, 6);
+    final tampered = await pairingShortAuthString(
+      identityHex: 'aa' * 32,
+      primaryDeviceHex: 'bb' * 32,
+      newDeviceHex: 'dd' * 32,
+      challenge: List.filled(32, 7),
+    );
+    expect(sas, isNot(equals(tampered)));
+  });
 }
