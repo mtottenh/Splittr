@@ -99,6 +99,44 @@ fn repository_projection_matches_fold() {
 }
 
 #[test]
+fn cached_projection_is_invalidated_by_append() {
+    // A read between appends must not serve a stale (cached) projection (#39).
+    let mut repo = Repository::open(MemoryOpStore::new()).unwrap();
+    repo.append(&op(
+        0,
+        OpKind::CreateGroup {
+            group: GroupId::from("g0"),
+            name: "Trip".into(),
+        },
+    ))
+    .unwrap();
+    assert!(repo.projection().groups.contains_key(&GroupId::from("g0")));
+
+    // After a prior read populated the cache, a new op must still show up.
+    repo.append(&op(
+        1,
+        OpKind::CreateGroup {
+            group: GroupId::from("g1"),
+            name: "Cabin".into(),
+        },
+    ))
+    .unwrap();
+    assert!(repo.projection().groups.contains_key(&GroupId::from("g1")));
+
+    // A duplicate (no state change) must not invalidate incorrectly either.
+    let dup = op(
+        2,
+        OpKind::CreateGroup {
+            group: GroupId::from("g2"),
+            name: "Lake".into(),
+        },
+    );
+    assert_eq!(repo.append(&dup).unwrap(), Applied::Stored);
+    assert_eq!(repo.append(&dup).unwrap(), Applied::Duplicate);
+    assert_eq!(repo.projection().groups.len(), 3);
+}
+
+#[test]
 fn repository_rejects_tampered_op_and_dedups() {
     let mut repo = Repository::open(MemoryOpStore::new()).unwrap();
     let valid = op(

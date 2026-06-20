@@ -1,8 +1,8 @@
 //! Read-side view-models — UI-friendly projections over the engine state.
 
 use splittr_crdt::{
-    net_balances, pairwise_with, settle_up, Cents, ExpenseId, ExpenseRecord, GroupId, Op, OpKind,
-    OriginalAmount, Projection, PublicKey, SettlementId, Transfer, UserId,
+    my_net_by_group, net_balances, pairwise_with, settle_up, Cents, ExpenseId, ExpenseRecord,
+    GroupId, Op, OpKind, OriginalAmount, Projection, PublicKey, SettlementId, Transfer, UserId,
 };
 
 /// A device authorized for the local identity (#16).
@@ -215,17 +215,16 @@ pub fn overall_net(p: &Projection, me: &UserId) -> Cents {
 }
 
 pub fn groups(p: &Projection, me: &UserId) -> Vec<GroupSummary> {
+    // One pass for every group's net, instead of a full sub-projection per group.
+    let nets = my_net_by_group(p, me);
     p.groups
         .iter()
-        .map(|(id, group)| {
-            let net = net_balances(&p.for_group(id));
-            GroupSummary {
-                id: id.clone(),
-                name: group.name.clone(),
-                currency: group.currency.clone(),
-                member_count: group.members.len(),
-                my_net: net.get(me).copied().unwrap_or(Cents::ZERO),
-            }
+        .map(|(id, group)| GroupSummary {
+            id: id.clone(),
+            name: group.name.clone(),
+            currency: group.currency.clone(),
+            member_count: group.members.len(),
+            my_net: nets.get(id).copied().unwrap_or(Cents::ZERO),
         })
         .collect()
 }

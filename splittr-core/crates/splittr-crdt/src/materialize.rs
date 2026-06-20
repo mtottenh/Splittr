@@ -84,10 +84,22 @@ struct Devices {
 }
 
 impl Devices {
-    /// A normal op counts unless its author device is revoked as of its HLC.
+    /// Whether a normal op is counted in the fold.
+    ///
+    /// **Enforced here:** an op stops counting once its author device has been
+    /// **revoked** (as of the op's HLC), order-independently. Authenticity is
+    /// enforced separately at ingestion (`Op::verify`).
+    ///
+    /// **Not yet enforced:** *entitlement* — that the author's identity is a
+    /// member entitled to affect the touched group. An uncertified key acts as
+    /// its own identity (the self-sovereign default), so any never-revoked key
+    /// counts. Real entitlement needs the membership/invite trust layer (#7/#8)
+    /// and must land before sync (#14/#20) accepts foreign ops — tracked in #38.
     fn op_authorized(&self, op: &Op) -> bool {
         match self.revoked.get(&op.author) {
             Some(revoke_hlc) => op.hlc < *revoke_hlc,
+            // TODO(#38): gate on entitlement (member-authorized identity) before
+            // sync ingests foreign ops; today only revocation is enforced.
             None => true,
         }
     }
@@ -282,6 +294,18 @@ impl Folder {
     fn assemble(self, devices: Devices) -> Projection {
         let aliases = resolve_aliases(&self.alias_edges);
 
+        // Bucket memberships by group in one pass (avoids an O(groups × members)
+        // scan of the whole membership map per group).
+        let mut members_by_group: BTreeMap<GroupId, BTreeSet<UserId>> = BTreeMap::new();
+        for ((gid, uid), stamped) in &self.membership {
+            if stamped.value {
+                members_by_group
+                    .entry(gid.clone())
+                    .or_default()
+                    .insert(uid.clone());
+            }
+        }
+
         let mut groups = BTreeMap::new();
         for g in &self.group_created {
             let name = self
@@ -289,12 +313,7 @@ impl Folder {
                 .get(g)
                 .map(|s| s.value.clone())
                 .unwrap_or_default();
-            let mut members = BTreeSet::new();
-            for ((gid, uid), stamped) in &self.membership {
-                if gid == g && stamped.value {
-                    members.insert(uid.clone());
-                }
-            }
+            let members = members_by_group.remove(g).unwrap_or_default();
             let closed_until_ms = self.group_closed_until.get(g).map(|s| s.value).unwrap_or(0);
             let currency = self
                 .group_currency

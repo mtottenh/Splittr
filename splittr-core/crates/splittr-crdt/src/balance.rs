@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use splittr_domain::{simplify_debts, Cents, Transfer, UserId};
+use splittr_domain::{simplify_debts, Cents, GroupId, Transfer, UserId};
 
 use crate::projection::Projection;
 
@@ -39,6 +39,50 @@ pub fn net_balances(p: &Projection) -> BTreeMap<UserId, Cents> {
 /// (the "settle up" feature). A deterministic projection over [`net_balances`].
 pub fn settle_up(p: &Projection) -> Vec<Transfer> {
     simplify_debts(&net_balances(p))
+}
+
+/// The local user `me`'s net within each group (positive = is owed), in a single
+/// pass over the published ledger. Used by the groups list so it doesn't clone a
+/// per-group sub-projection per group; reconciles with
+/// `net_balances(&p.for_group(g)).get(me)`.
+pub fn my_net_by_group(p: &Projection, me: &UserId) -> BTreeMap<GroupId, Cents> {
+    let resolve = |u: &UserId| p.aliases.get(u).cloned().unwrap_or_else(|| u.clone());
+    let me = resolve(me);
+    let mut out: BTreeMap<GroupId, Cents> = BTreeMap::new();
+
+    for e in p.expenses.values() {
+        let Some(group) = &e.group else { continue };
+        if !e.published {
+            continue; // drafts don't affect balances (#15)
+        }
+        let mut delta = Cents::ZERO;
+        for (payer, paid) in &e.fields.paid_by {
+            if resolve(payer) == me {
+                delta += *paid;
+            }
+        }
+        for s in &e.fields.splits {
+            if resolve(&s.user) == me {
+                delta -= s.owed;
+            }
+        }
+        if !delta.is_zero() {
+            *out.entry(group.clone()).or_default() += delta;
+        }
+    }
+
+    for s in p.settlements.values() {
+        let Some(group) = &s.group else { continue };
+        let (from, to) = (resolve(&s.from), resolve(&s.to));
+        if from == me {
+            *out.entry(group.clone()).or_default() += s.amount;
+        } else if to == me {
+            *out.entry(group.clone()).or_default() -= s.amount;
+        }
+    }
+
+    out.retain(|_, c| !c.is_zero());
+    out
 }
 
 /// What every other user owes the local user `me`, in cents (positive = the

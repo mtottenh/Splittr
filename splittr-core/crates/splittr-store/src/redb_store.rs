@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableTable, ReadableTableMetadata, TableDefinition};
 use splittr_crdt::{Op, OpId};
 use splittr_crypto::{open, seal, AeadKey};
 
@@ -99,8 +99,9 @@ impl OpStore for RedbOpStore {
     }
 
     fn len(&self) -> Result<usize> {
-        // Derived from `ops()` to avoid depending on redb's metadata trait,
-        // which has moved between versions.
-        Ok(self.ops()?.len())
+        // O(1) from redb's metadata — no decrypt/decode just to count.
+        let read = self.db.begin_read().map_err(backend)?;
+        let table = read.open_table(OPS).map_err(backend)?;
+        Ok(table.len().map_err(backend)? as usize)
     }
 }

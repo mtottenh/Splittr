@@ -1,6 +1,9 @@
-//! Wires an [`OpStore`] to the CRDT [`Materializer`]: the durable op-log plus an
-//! in-memory projection kept up to date as ops are appended. This is the object
-//! the application/FFI layer (#23) will drive.
+//! Wires an [`OpStore`] to the CRDT [`Materializer`]: the durable op-log plus the
+//! read-model [`Projection`], recomputed on demand and **cached between appends**
+//! (invalidated whenever a new op is stored). This is the object the
+//! application/FFI layer (#23) drives.
+
+use std::cell::RefCell;
 
 use splittr_crdt::{Materializer, Op, Projection};
 
@@ -21,6 +24,9 @@ pub enum Applied {
 pub struct Repository<S: OpStore> {
     store: S,
     materializer: Materializer,
+    /// Memoized fold, dropped on every successful append. Recomputed lazily on
+    /// the next read so a burst of queries between commands folds at most once.
+    cached: RefCell<Option<Projection>>,
 }
 
 impl<S: OpStore> Repository<S> {
@@ -34,6 +40,7 @@ impl<S: OpStore> Repository<S> {
         Ok(Self {
             store,
             materializer,
+            cached: RefCell::new(None),
         })
     }
 
@@ -48,12 +55,18 @@ impl<S: OpStore> Repository<S> {
             return Ok(Applied::Duplicate);
         }
         self.materializer.apply(op);
+        *self.cached.borrow_mut() = None; // invalidate; recompute on next read
         Ok(Applied::Stored)
     }
 
-    /// The current read model.
+    /// The current read model — served from the memoized fold, recomputing it
+    /// once if the cache was invalidated by an append.
     pub fn projection(&self) -> Projection {
-        self.materializer.projection()
+        let mut slot = self.cached.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(self.materializer.projection());
+        }
+        slot.as_ref().expect("just populated").clone()
     }
 
     pub fn store(&self) -> &S {

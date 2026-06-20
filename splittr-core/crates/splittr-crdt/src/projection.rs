@@ -33,13 +33,15 @@ pub struct DeviceRecord {
 }
 
 impl Projection {
-    /// A sub-projection containing only `group`'s expenses and settlements
-    /// (users/aliases retained). Lets balance functions be reused for
-    /// group-scoped totals without duplicating their logic.
+    /// A sub-projection holding only `group`'s expenses/settlements plus the
+    /// alias map — everything the balance functions ([`crate::net_balances`],
+    /// [`crate::settle_up`]) read. `groups`/`users`/`devices` are intentionally
+    /// left empty (name resolution uses the full projection), so this clones the
+    /// scoped ledger rather than the whole read model.
     pub fn for_group(&self, group: &GroupId) -> Projection {
         Projection {
-            groups: self.groups.clone(),
-            users: self.users.clone(),
+            groups: BTreeMap::new(),
+            users: BTreeMap::new(),
             expenses: self
                 .expenses
                 .iter()
@@ -53,7 +55,7 @@ impl Projection {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
             aliases: self.aliases.clone(),
-            devices: self.devices.clone(),
+            devices: BTreeMap::new(),
         }
     }
 }
