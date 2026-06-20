@@ -34,8 +34,8 @@ pub use projection::{
 // Re-export the crypto + domain types that appear in this crate's public API so
 // callers (and tests) need only depend on `splittr-crdt`.
 pub use splittr_crypto::{
-    recovery_phrase, seed_from_phrase, AgreementKey, AgreementPublic, PublicKey, Signature,
-    SigningKey,
+    open_seed, recovery_phrase, seal_seed, seed_from_phrase, AgreementKey, AgreementPublic,
+    PairingTranscript, PublicKey, Signature, SigningKey,
 };
 pub use splittr_domain::{
     convert, minor_units, simplify_debts, split_by_weights, split_equal, Cents, ExpenseFields,

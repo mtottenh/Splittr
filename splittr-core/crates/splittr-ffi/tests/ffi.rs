@@ -155,6 +155,97 @@ fn device_authorize_and_revoke_through_the_ffi() {
 }
 
 #[test]
+fn device_only_reopen_locks_the_root_until_unlocked() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = db_path(&dir);
+
+    // First (full) run: self-enrol this device and record the identity pubkey.
+    let identity_public = {
+        let engine = Engine::open(path.clone(), seed(), device_seed(), db_key(), 1).unwrap();
+        engine.set_my_name("Me".into()).unwrap();
+        engine.identity_public()
+    };
+
+    // Daily run: open device-only (root sealed). Device-signed ops still work.
+    let engine = Engine::open_device_only(
+        path,
+        parse_hex(&identity_public),
+        device_seed(),
+        db_key(),
+        1,
+    )
+    .unwrap();
+    assert!(!engine.is_root_unlocked());
+    assert_eq!(engine.identity_public(), identity_public);
+    engine.set_my_name("Me Again".into()).unwrap();
+    assert_eq!(engine.my_name().as_deref(), Some("Me Again"));
+    engine.add_person("Bob".into()).unwrap();
+    assert_eq!(engine.list_devices().len(), 1); // still enrolled
+
+    // Privileged device certs need the root, which is locked.
+    let second = "11".repeat(32);
+    assert!(engine.authorize_device(second.clone(), 2).is_err());
+
+    // A foreign seed is rejected; the real identity seed unlocks the root.
+    assert!(engine.unlock_root(vec![9u8; 32]).is_err());
+    assert!(!engine.is_root_unlocked());
+    engine.unlock_root(seed()).unwrap();
+    assert!(engine.is_root_unlocked());
+    engine.authorize_device(second.clone(), 2).unwrap();
+    assert!(engine.list_devices().iter().any(|d| d.device == second));
+
+    // Re-seal: privileged actions are gated again.
+    engine.lock_root();
+    assert!(!engine.is_root_unlocked());
+    assert!(engine.revoke_device(second).is_err());
+}
+
+#[test]
+fn root_seed_seals_and_opens_under_a_passphrase() {
+    let blob = seal_root_seed("1234".into(), seed()).unwrap();
+    assert_ne!(blob, seed()); // not stored in the clear
+    assert_eq!(open_root_seed("1234".into(), blob.clone()), Some(seed()));
+    assert_eq!(open_root_seed("0000".into(), blob), None); // wrong PIN
+}
+
+#[test]
+fn pairing_short_auth_string_matches_and_detects_tampering() {
+    let identity = "aa".repeat(32);
+    let primary = "bb".repeat(32);
+    let new_device = "cc".repeat(32);
+    let challenge = vec![7u8; 32];
+
+    let sas = pairing_short_auth_string(
+        identity.clone(),
+        primary.clone(),
+        new_device.clone(),
+        challenge.clone(),
+    )
+    .unwrap();
+    // Recomputing from the same transcript agrees (both devices compare this).
+    assert_eq!(
+        sas,
+        pairing_short_auth_string(
+            identity.clone(),
+            primary.clone(),
+            new_device,
+            challenge.clone()
+        )
+        .unwrap()
+    );
+    // A MITM-substituted device key changes the string.
+    let tampered =
+        pairing_short_auth_string(identity, primary, "dd".repeat(32), challenge).unwrap();
+    assert_ne!(sas, tampered);
+}
+
+fn parse_hex(s: &str) -> Vec<u8> {
+    (0..s.len() / 2)
+        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).unwrap())
+        .collect()
+}
+
+#[test]
 fn rejects_a_malformed_seed() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Engine::open(db_path(&dir), vec![1, 2, 3], device_seed(), db_key(), 1).is_err());

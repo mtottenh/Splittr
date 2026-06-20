@@ -25,7 +25,8 @@ pub use query::{
 
 // Convenience re-exports so callers/tests depend only on `splittr-app`.
 pub use splittr_crdt::{
-    convert, minor_units, recovery_phrase, seed_from_phrase, Cents, ExpenseId, GroupId,
-    OriginalAmount, SettlementId, SigningKey, SiteId, SplitPlan, Transfer, UserId,
+    convert, minor_units, open_seed, recovery_phrase, seal_seed, seed_from_phrase, Cents,
+    ExpenseId, GroupId, OriginalAmount, PairingTranscript, PublicKey, SettlementId, SigningKey,
+    SiteId, SplitPlan, Transfer, UserId,
 };
 pub use splittr_store::{MemoryOpStore, OpStore, RedbOpStore, Repository};

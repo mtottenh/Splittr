@@ -21,5 +21,5 @@ pub mod dto;
 )]
 mod frb_generated;
 
-pub use api::Engine;
+pub use api::*;
 pub use dto::*;

@@ -324,7 +324,7 @@ fn set_my_name_publishes_my_agreement_key() {
     let published = app.projection().users[&me].agreement_pub;
     assert_eq!(
         published,
-        Some(app.my_agreement_public()),
+        app.my_agreement_public(),
         "the local user's X25519 key is published and converges (#6)"
     );
 }
@@ -476,4 +476,39 @@ fn expense_in_a_closed_period_cannot_be_edited_or_deleted() {
         app.group_detail(&group).unwrap().expenses[0].description,
         "Renamed"
     );
+}
+
+#[test]
+fn root_lock_gates_privileged_actions_but_not_daily_ops() {
+    // A full open starts unlocked and self-enrols this device.
+    let mut app = new_app();
+    assert!(app.root_unlocked());
+
+    // Daily, device-signed ops keep working once the root is sealed (#34).
+    app.lock_root();
+    assert!(!app.root_unlocked());
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    app.add_person("Bob").unwrap();
+    assert_eq!(app.my_name().as_deref(), Some("Me"));
+
+    // Privileged device certs need the root: locked -> RootLocked.
+    assert!(matches!(
+        app.authorize_device([9u8; 32], 2),
+        Err(AppError::RootLocked)
+    ));
+    assert!(matches!(
+        app.revoke_device([9u8; 32]),
+        Err(AppError::RootLocked)
+    ));
+
+    // A wrong seed is rejected; the matching seed re-enables privileged ops.
+    assert!(app.unlock_root([2u8; 32]).is_err());
+    assert!(!app.root_unlocked());
+    app.unlock_root([1u8; 32]).unwrap();
+    assert!(app.root_unlocked());
+    app.authorize_device([9u8; 32], 2).unwrap();
+
+    // The local user id is unchanged across lock/unlock.
+    assert_eq!(app.me(), &me);
 }

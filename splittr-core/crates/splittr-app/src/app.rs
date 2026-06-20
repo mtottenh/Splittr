@@ -38,10 +38,17 @@ impl<S: OpStore> App<S> {
 
     /// Self-issue this device's certificate (root-signed) the first time it runs,
     /// so its device-signed ops attribute to the identity (#16/ADR-0005).
+    ///
+    /// Already-enrolled devices open without the root (daily, locked operation,
+    /// #34); bootstrapping a *new* device's first certificate needs the root, so
+    /// it must be opened unlocked.
     fn ensure_device_authorized(&mut self, site: SiteId) -> Result<()> {
         let device = self.identity.device_public();
         if self.repo.projection().devices.contains_key(&device) {
             return Ok(());
+        }
+        if !self.identity.root_unlocked() {
+            return Err(AppError::RootLocked);
         }
         let identity = self.identity.public();
         self.commit_as_root(OpKind::AuthorizeDevice {
@@ -49,6 +56,29 @@ impl<S: OpStore> App<S> {
             device,
             site: site.0,
         })
+    }
+
+    /// Unlock the identity (root) key from its seed so privileged actions
+    /// (enrol/revoke a device) can be signed. Returns an error if the seed does
+    /// not match this identity. Pair with [`lock_root`](Self::lock_root) (#34).
+    pub fn unlock_root(&mut self, identity_seed: [u8; 32]) -> Result<()> {
+        if self.identity.unlock(identity_seed) {
+            Ok(())
+        } else {
+            Err(AppError::NotAuthorized(
+                "recovery seed does not match this identity".into(),
+            ))
+        }
+    }
+
+    /// Re-seal the root: drop the in-memory secret after a privileged action.
+    pub fn lock_root(&mut self) {
+        self.identity.lock();
+    }
+
+    /// Whether the root is currently unlocked.
+    pub fn root_unlocked(&self) -> bool {
+        self.identity.root_unlocked()
     }
 
     /// The local user's id.
@@ -71,19 +101,36 @@ impl<S: OpStore> App<S> {
         })?;
         // Publish the X25519 agreement key so peers can encrypt to us (#6/#14).
         // Content-addressed, so re-emitting the same key is a deduped no-op.
+        // Needs the root seed; in daily (locked) operation the key is already
+        // published, so skipping it is correct.
         self.publish_agreement_key()
     }
 
-    /// Publish the local user's X25519 agreement public key (#6).
+    /// Publish the local user's X25519 agreement public key (#6). A no-op when
+    /// the root is locked (the key is derived from the root seed and is already
+    /// in the log from first run).
     pub fn publish_agreement_key(&mut self) -> Result<()> {
+        let Some(agreement) = self.identity.agreement_public() else {
+            return Ok(());
+        };
         let user = self.me().clone();
-        let key = self.identity.agreement_public().0;
-        self.commit(OpKind::SetAgreementKey { user, key })
+        self.commit(OpKind::SetAgreementKey {
+            user,
+            key: agreement.0,
+        })
     }
 
-    /// The local user's X25519 agreement public key (#6/#14).
-    pub fn my_agreement_public(&self) -> [u8; 32] {
-        self.identity.agreement_public().0
+    /// The local user's X25519 agreement public key (#6/#14): derived from the
+    /// root seed when unlocked, otherwise read from the published projection.
+    pub fn my_agreement_public(&self) -> Option<[u8; 32]> {
+        if let Some(agreement) = self.identity.agreement_public() {
+            return Some(agreement.0);
+        }
+        self.repo
+            .projection()
+            .users
+            .get(self.me())
+            .and_then(|u| u.agreement_pub)
     }
 
     /// The local user's display name, if a profile has been set.
@@ -434,6 +481,12 @@ impl<S: OpStore> App<S> {
         self.identity.device_public().0
     }
 
+    /// The identity (root) public key — persisted by the shell so later launches
+    /// can open device-only (root locked, #34).
+    pub fn identity_public(&self) -> [u8; 32] {
+        self.identity.public().0
+    }
+
     /// Devices authorized for the local identity (#16).
     pub fn devices(&self) -> Vec<DeviceView> {
         query::devices(
@@ -488,7 +541,7 @@ impl<S: OpStore> App<S> {
     fn commit_signed(&mut self, kind: OpKind, as_root: bool) -> Result<()> {
         let hlc = self.clock.now();
         let key = if as_root {
-            self.identity.root_key()
+            self.identity.root_key().ok_or(AppError::RootLocked)?
         } else {
             self.identity.device_key()
         };

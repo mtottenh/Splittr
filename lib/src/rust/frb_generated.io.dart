@@ -152,6 +152,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
   OriginalAmountDto dco_decode_original_amount_dto(dynamic raw);
 
   @protected
@@ -339,6 +342,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OriginalAmountDto? sse_decode_opt_box_autoadd_original_amount_dto(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
   OriginalAmountDto sse_decode_original_amount_dto(
@@ -584,6 +590,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_original_amount_dto(
     OriginalAmountDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
     SseSerializer serializer,
   );
 

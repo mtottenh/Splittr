@@ -8,7 +8,10 @@
 use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
-use splittr_app::{App, Cents, GroupId, Identity, RedbOpStore, SettlementId, SiteId, UserId};
+use splittr_app::{
+    App, Cents, GroupId, Identity, PairingTranscript, PublicKey, RedbOpStore, SettlementId, SiteId,
+    UserId,
+};
 
 use crate::convert::{to_original, to_paid_by, to_split_plan};
 use crate::dto::{
@@ -36,13 +39,64 @@ impl Engine {
     ) -> Result<Engine> {
         let id_seed = seed32(&identity_seed, "identity seed")?;
         let dev_seed = seed32(&device_seed, "device seed")?;
+        let identity = Identity::from_seeds(id_seed, dev_seed);
+        Self::open_with(db_path, identity, db_key, site)
+    }
+
+    /// Open for daily use with the root **locked** (#34): the device key signs
+    /// ops, the public identity is known, and privileged actions (enrol/revoke)
+    /// require [`unlock_root`](Engine::unlock_root). The device must already be
+    /// enrolled — i.e. this identity ran a full `open` on this device before.
+    /// `identity_public` is the 32-byte identity (root) public key.
+    pub fn open_device_only(
+        db_path: String,
+        identity_public: Vec<u8>,
+        device_seed: Vec<u8>,
+        db_key: Vec<u8>,
+        site: u64,
+    ) -> Result<Engine> {
+        let id_pub = PublicKey(seed32(&identity_public, "identity public key")?);
+        let dev_seed = seed32(&device_seed, "device seed")?;
+        let identity = Identity::device_only(id_pub, dev_seed);
+        Self::open_with(db_path, identity, db_key, site)
+    }
+
+    fn open_with(
+        db_path: String,
+        identity: Identity,
+        db_key: Vec<u8>,
+        site: u64,
+    ) -> Result<Engine> {
         let key = seed32(&db_key, "db key")?;
         let store = RedbOpStore::open_encrypted(&db_path, key)?;
-        let identity = Identity::from_seeds(id_seed, dev_seed);
         let app = App::new(identity, store, SiteId(site))?;
         Ok(Engine {
             inner: Mutex::new(app),
         })
+    }
+
+    /// The identity (root) public key as hex — persist it after the first
+    /// (full) open so later launches can `open_device_only` (#34).
+    pub fn identity_public(&self) -> String {
+        hex32(&self.lock().identity_public())
+    }
+
+    /// Unlock the root from its seed (after the app lock decrypts the vault) so
+    /// device enrol/revoke can be signed; errors if the seed is for another
+    /// identity (#34).
+    pub fn unlock_root(&self, identity_seed: Vec<u8>) -> Result<()> {
+        let seed = seed32(&identity_seed, "identity seed")?;
+        self.lock().unlock_root(seed)?;
+        Ok(())
+    }
+
+    /// Re-seal the root after a privileged action.
+    pub fn lock_root(&self) {
+        self.lock().lock_root();
+    }
+
+    pub fn is_root_unlocked(&self) -> bool {
+        self.lock().root_unlocked()
     }
 
     // --- profiles & people -------------------------------------------------
@@ -55,9 +109,10 @@ impl Engine {
         self.lock().my_name()
     }
 
-    /// The local user's X25519 agreement public key as hex (#6/#14).
-    pub fn my_agreement_public(&self) -> String {
-        hex32(&self.lock().my_agreement_public())
+    /// The local user's X25519 agreement public key as hex (#6/#14). `None`
+    /// before a profile has published it (locked, never-named identity).
+    pub fn my_agreement_public(&self) -> Option<String> {
+        self.lock().my_agreement_public().map(|k| hex32(&k))
     }
 
     pub fn set_my_name(&self, name: String) -> Result<()> {
@@ -377,4 +432,37 @@ pub fn seed_from_recovery_phrase(phrase: String) -> Result<Vec<u8>> {
     splittr_app::seed_from_phrase(&phrase)
         .map(|s| s.to_vec())
         .ok_or_else(|| anyhow!("invalid recovery phrase"))
+}
+
+/// Seal a 32-byte root seed under the app-lock `passphrase` for at-rest storage
+/// on the primary device (#34/ADR-0005). Returns the opaque sealed blob.
+pub fn seal_root_seed(passphrase: String, seed: Vec<u8>) -> Result<Vec<u8>> {
+    Ok(splittr_app::seal_seed(
+        &passphrase,
+        &seed32(&seed, "root seed")?,
+    ))
+}
+
+/// Open a [`seal_root_seed`] blob. `None` if the passphrase is wrong or the blob
+/// was tampered with (#34).
+pub fn open_root_seed(passphrase: String, blob: Vec<u8>) -> Option<Vec<u8>> {
+    splittr_app::open_seed(&passphrase, &blob).map(|s| s.to_vec())
+}
+
+/// The device-enrolment short authentication string both devices compare to
+/// defeat a man-in-the-middle (#35). All keys are 32-byte hex; `challenge` is
+/// the 32-byte one-time pairing nonce.
+pub fn pairing_short_auth_string(
+    identity_hex: String,
+    primary_device_hex: String,
+    new_device_hex: String,
+    challenge: Vec<u8>,
+) -> Result<String> {
+    let transcript = PairingTranscript {
+        identity: PublicKey(parse_hex32(&identity_hex)?),
+        primary_device: PublicKey(parse_hex32(&primary_device_hex)?),
+        new_device: PublicKey(parse_hex32(&new_device_hex)?),
+        challenge: seed32(&challenge, "challenge")?,
+    };
+    Ok(transcript.short_auth_string())
 }

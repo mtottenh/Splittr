@@ -14,6 +14,10 @@ pub enum AppError {
     /// A referenced entity does not exist.
     #[error("not found: {0}")]
     NotFound(String),
+    /// A privileged action (device enrol/revoke) needs the identity (root) key,
+    /// which is sealed; unlock it via the app lock first (#34/ADR-0005).
+    #[error("identity (root) key is locked")]
+    RootLocked,
     /// The storage backend failed.
     #[error(transparent)]
     Store(#[from] StoreError),

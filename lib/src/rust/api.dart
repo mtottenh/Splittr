@@ -7,7 +7,7 @@ import 'dto.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `hex32`, `lock`, `parse_hex32`, `seed32`
+// These functions are ignored because they are not marked as `pub`: `hex32`, `lock`, `open_with`, `parse_hex32`, `seed32`
 
 /// Convert `amount_cents` from `from_currency` to `to_currency` at `rate_micro`
 /// (target units per source unit, ×1e6). Integer-safe; the money math lives in
@@ -36,6 +36,41 @@ Future<String> recoveryPhrase({required List<int> identitySeed}) =>
 /// Re-derive the 32-byte identity seed from a recovery phrase (#34).
 Future<Uint8List> seedFromRecoveryPhrase({required String phrase}) =>
     RustLib.instance.api.crateApiSeedFromRecoveryPhrase(phrase: phrase);
+
+/// Seal a 32-byte root seed under the app-lock `passphrase` for at-rest storage
+/// on the primary device (#34/ADR-0005). Returns the opaque sealed blob.
+Future<Uint8List> sealRootSeed({
+  required String passphrase,
+  required List<int> seed,
+}) => RustLib.instance.api.crateApiSealRootSeed(
+  passphrase: passphrase,
+  seed: seed,
+);
+
+/// Open a [`seal_root_seed`] blob. `None` if the passphrase is wrong or the blob
+/// was tampered with (#34).
+Future<Uint8List?> openRootSeed({
+  required String passphrase,
+  required List<int> blob,
+}) => RustLib.instance.api.crateApiOpenRootSeed(
+  passphrase: passphrase,
+  blob: blob,
+);
+
+/// The device-enrolment short authentication string both devices compare to
+/// defeat a man-in-the-middle (#35). All keys are 32-byte hex; `challenge` is
+/// the 32-byte one-time pairing nonce.
+Future<String> pairingShortAuthString({
+  required String identityHex,
+  required String primaryDeviceHex,
+  required String newDeviceHex,
+  required List<int> challenge,
+}) => RustLib.instance.api.crateApiPairingShortAuthString(
+  identityHex: identityHex,
+  primaryDeviceHex: primaryDeviceHex,
+  newDeviceHex: newDeviceHex,
+  challenge: challenge,
+);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>>
 abstract class Engine implements RustOpaqueInterface {
@@ -78,12 +113,22 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<List<GroupSummaryDto>> groups();
 
+  /// The identity (root) public key as hex — persist it after the first
+  /// (full) open so later launches can `open_device_only` (#34).
+  Future<String> identityPublic();
+
+  Future<bool> isRootUnlocked();
+
   Future<List<DeviceViewDto>> listDevices();
 
   Future<void> lockExpense({required String expenseId});
 
-  /// The local user's X25519 agreement public key as hex (#6/#14).
-  Future<String> myAgreementPublic();
+  /// Re-seal the root after a privileged action.
+  Future<void> lockRoot();
+
+  /// The local user's X25519 agreement public key as hex (#6/#14). `None`
+  /// before a profile has published it (locked, never-named identity).
+  Future<String?> myAgreementPublic();
 
   /// This device's public key (hex) — share it to enrol from another device.
   Future<String> myDevicePublic();
@@ -107,6 +152,25 @@ abstract class Engine implements RustOpaqueInterface {
   }) => RustLib.instance.api.crateApiEngineOpen(
     dbPath: dbPath,
     identitySeed: identitySeed,
+    deviceSeed: deviceSeed,
+    dbKey: dbKey,
+    site: site,
+  );
+
+  /// Open for daily use with the root **locked** (#34): the device key signs
+  /// ops, the public identity is known, and privileged actions (enrol/revoke)
+  /// require [`unlock_root`](Engine::unlock_root). The device must already be
+  /// enrolled — i.e. this identity ran a full `open` on this device before.
+  /// `identity_public` is the 32-byte identity (root) public key.
+  static Future<Engine> openDeviceOnly({
+    required String dbPath,
+    required List<int> identityPublic,
+    required List<int> deviceSeed,
+    required List<int> dbKey,
+    required BigInt site,
+  }) => RustLib.instance.api.crateApiEngineOpenDeviceOnly(
+    dbPath: dbPath,
+    identityPublic: identityPublic,
     deviceSeed: deviceSeed,
     dbKey: dbKey,
     site: site,
@@ -155,4 +219,9 @@ abstract class Engine implements RustOpaqueInterface {
   Future<void> setMyName({required String name});
 
   Future<void> unlockExpense({required String expenseId});
+
+  /// Unlock the root from its seed (after the app lock decrypts the vault) so
+  /// device enrol/revoke can be signed; errors if the seed is for another
+  /// identity (#34).
+  Future<void> unlockRoot({required List<int> identitySeed});
 }

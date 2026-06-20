@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1787037418;
+  int get rustContentHash => -1249302912;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -138,6 +138,10 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<GroupSummaryDto>> crateApiEngineGroups({required Engine that});
 
+  Future<String> crateApiEngineIdentityPublic({required Engine that});
+
+  Future<bool> crateApiEngineIsRootUnlocked({required Engine that});
+
   Future<List<DeviceViewDto>> crateApiEngineListDevices({required Engine that});
 
   Future<void> crateApiEngineLockExpense({
@@ -145,7 +149,9 @@ abstract class RustLibApi extends BaseApi {
     required String expenseId,
   });
 
-  Future<String> crateApiEngineMyAgreementPublic({required Engine that});
+  Future<void> crateApiEngineLockRoot({required Engine that});
+
+  Future<String?> crateApiEngineMyAgreementPublic({required Engine that});
 
   Future<String> crateApiEngineMyDevicePublic({required Engine that});
 
@@ -156,6 +162,14 @@ abstract class RustLibApi extends BaseApi {
   Future<Engine> crateApiEngineOpen({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> deviceSeed,
+    required List<int> dbKey,
+    required BigInt site,
+  });
+
+  Future<Engine> crateApiEngineOpenDeviceOnly({
+    required String dbPath,
+    required List<int> identityPublic,
     required List<int> deviceSeed,
     required List<int> dbKey,
     required BigInt site,
@@ -222,6 +236,11 @@ abstract class RustLibApi extends BaseApi {
     required String expenseId,
   });
 
+  Future<void> crateApiEngineUnlockRoot({
+    required Engine that,
+    required List<int> identitySeed,
+  });
+
   Future<PlatformInt64> crateApiConvertCurrency({
     required PlatformInt64 amountCents,
     required PlatformInt64 rateMicro,
@@ -231,7 +250,24 @@ abstract class RustLibApi extends BaseApi {
 
   Future<int> crateApiCurrencyMinorUnits({required String code});
 
+  Future<Uint8List?> crateApiOpenRootSeed({
+    required String passphrase,
+    required List<int> blob,
+  });
+
+  Future<String> crateApiPairingShortAuthString({
+    required String identityHex,
+    required String primaryDeviceHex,
+    required String newDeviceHex,
+    required List<int> challenge,
+  });
+
   Future<String> crateApiRecoveryPhrase({required List<int> identitySeed});
+
+  Future<Uint8List> crateApiSealRootSeed({
+    required String passphrase,
+    required List<int> seed,
+  });
 
   Future<Uint8List> crateApiSeedFromRecoveryPhrase({required String phrase});
 
@@ -729,6 +765,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "Engine_groups", argNames: ["that"]);
 
   @override
+  Future<String> crateApiEngineIdentityPublic({required Engine that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineIdentityPublicConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineIdentityPublicConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_identity_public",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiEngineIsRootUnlocked({required Engine that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineIsRootUnlockedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineIsRootUnlockedConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_is_root_unlocked",
+        argNames: ["that"],
+      );
+
+  @override
   Future<List<DeviceViewDto>> crateApiEngineListDevices({
     required Engine that,
   }) {
@@ -743,7 +847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -778,7 +882,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -799,7 +903,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<String> crateApiEngineMyAgreementPublic({required Engine that}) {
+  Future<void> crateApiEngineLockRoot({required Engine that}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -811,12 +915,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineLockRootConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineLockRootConstMeta =>
+      const TaskConstMeta(debugName: "Engine_lock_root", argNames: ["that"]);
+
+  @override
+  Future<String?> crateApiEngineMyAgreementPublic({required Engine that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
           decodeErrorData: null,
         ),
         constMeta: kCrateApiEngineMyAgreementPublicConstMeta,
@@ -845,7 +980,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 20,
             port: port_,
           );
         },
@@ -879,7 +1014,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 21,
             port: port_,
           );
         },
@@ -910,7 +1045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 22,
             port: port_,
           );
         },
@@ -948,7 +1083,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 23,
             port: port_,
           );
         },
@@ -970,6 +1105,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<Engine> crateApiEngineOpenDeviceOnly({
+    required String dbPath,
+    required List<int> identityPublic,
+    required List<int> deviceSeed,
+    required List<int> dbKey,
+    required BigInt site,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dbPath, serializer);
+          sse_encode_list_prim_u_8_loose(identityPublic, serializer);
+          sse_encode_list_prim_u_8_loose(deviceSeed, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
+          sse_encode_u_64(site, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineOpenDeviceOnlyConstMeta,
+        argValues: [dbPath, identityPublic, deviceSeed, dbKey, site],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineOpenDeviceOnlyConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_open_device_only",
+        argNames: ["dbPath", "identityPublic", "deviceSeed", "dbKey", "site"],
+      );
+
+  @override
   Future<PlatformInt64> crateApiEngineOverallNetCents({required Engine that}) {
     return handler.executeNormal(
       NormalTask(
@@ -982,7 +1159,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1020,7 +1197,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1062,7 +1239,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1106,7 +1283,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1146,7 +1323,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1185,7 +1362,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1222,7 +1399,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1261,7 +1438,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1301,7 +1478,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1339,7 +1516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1376,7 +1553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1398,6 +1575,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiEngineUnlockRoot({
+    required Engine that,
+    required List<int> identitySeed,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_list_prim_u_8_loose(identitySeed, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 36,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineUnlockRootConstMeta,
+        argValues: [that, identitySeed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineUnlockRootConstMeta => const TaskConstMeta(
+    debugName: "Engine_unlock_root",
+    argNames: ["that", "identitySeed"],
+  );
+
+  @override
   Future<PlatformInt64> crateApiConvertCurrency({
     required PlatformInt64 amountCents,
     required PlatformInt64 rateMicro,
@@ -1415,7 +1629,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1445,7 +1659,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1466,6 +1680,84 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<Uint8List?> crateApiOpenRootSeed({
+    required String passphrase,
+    required List<int> blob,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(passphrase, serializer);
+          sse_encode_list_prim_u_8_loose(blob, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 39,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_list_prim_u_8_strict,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiOpenRootSeedConstMeta,
+        argValues: [passphrase, blob],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOpenRootSeedConstMeta => const TaskConstMeta(
+    debugName: "open_root_seed",
+    argNames: ["passphrase", "blob"],
+  );
+
+  @override
+  Future<String> crateApiPairingShortAuthString({
+    required String identityHex,
+    required String primaryDeviceHex,
+    required String newDeviceHex,
+    required List<int> challenge,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(identityHex, serializer);
+          sse_encode_String(primaryDeviceHex, serializer);
+          sse_encode_String(newDeviceHex, serializer);
+          sse_encode_list_prim_u_8_loose(challenge, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 40,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiPairingShortAuthStringConstMeta,
+        argValues: [identityHex, primaryDeviceHex, newDeviceHex, challenge],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPairingShortAuthStringConstMeta =>
+      const TaskConstMeta(
+        debugName: "pairing_short_auth_string",
+        argNames: [
+          "identityHex",
+          "primaryDeviceHex",
+          "newDeviceHex",
+          "challenge",
+        ],
+      );
+
+  @override
   Future<String> crateApiRecoveryPhrase({required List<int> identitySeed}) {
     return handler.executeNormal(
       NormalTask(
@@ -1475,7 +1767,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1496,6 +1788,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<Uint8List> crateApiSealRootSeed({
+    required String passphrase,
+    required List<int> seed,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(passphrase, serializer);
+          sse_encode_list_prim_u_8_loose(seed, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 42,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSealRootSeedConstMeta,
+        argValues: [passphrase, seed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSealRootSeedConstMeta => const TaskConstMeta(
+    debugName: "seal_root_seed",
+    argNames: ["passphrase", "seed"],
+  );
+
+  @override
   Future<Uint8List> crateApiSeedFromRecoveryPhrase({required String phrase}) {
     return handler.executeNormal(
       NormalTask(
@@ -1505,7 +1831,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1874,6 +2200,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_original_amount_dto(raw);
+  }
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
   }
 
   @protected
@@ -2494,6 +2826,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_prim_u_8_strict(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   OriginalAmountDto sse_decode_original_amount_dto(
     SseDeserializer deserializer,
   ) {
@@ -3056,6 +3399,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_prim_u_8_strict(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_original_amount_dto(
     OriginalAmountDto self,
     SseSerializer serializer,
@@ -3247,14 +3603,27 @@ class EngineImpl extends RustOpaque implements Engine {
   Future<List<GroupSummaryDto>> groups() =>
       RustLib.instance.api.crateApiEngineGroups(that: this);
 
+  /// The identity (root) public key as hex — persist it after the first
+  /// (full) open so later launches can `open_device_only` (#34).
+  Future<String> identityPublic() =>
+      RustLib.instance.api.crateApiEngineIdentityPublic(that: this);
+
+  Future<bool> isRootUnlocked() =>
+      RustLib.instance.api.crateApiEngineIsRootUnlocked(that: this);
+
   Future<List<DeviceViewDto>> listDevices() =>
       RustLib.instance.api.crateApiEngineListDevices(that: this);
 
   Future<void> lockExpense({required String expenseId}) => RustLib.instance.api
       .crateApiEngineLockExpense(that: this, expenseId: expenseId);
 
-  /// The local user's X25519 agreement public key as hex (#6/#14).
-  Future<String> myAgreementPublic() =>
+  /// Re-seal the root after a privileged action.
+  Future<void> lockRoot() =>
+      RustLib.instance.api.crateApiEngineLockRoot(that: this);
+
+  /// The local user's X25519 agreement public key as hex (#6/#14). `None`
+  /// before a profile has published it (locked, never-named identity).
+  Future<String?> myAgreementPublic() =>
       RustLib.instance.api.crateApiEngineMyAgreementPublic(that: this);
 
   /// This device's public key (hex) — share it to enrol from another device.
@@ -3350,4 +3719,12 @@ class EngineImpl extends RustOpaque implements Engine {
       .instance
       .api
       .crateApiEngineUnlockExpense(that: this, expenseId: expenseId);
+
+  /// Unlock the root from its seed (after the app lock decrypts the vault) so
+  /// device enrol/revoke can be signed; errors if the seed is for another
+  /// identity (#34).
+  Future<void> unlockRoot({required List<int> identitySeed}) => RustLib
+      .instance
+      .api
+      .crateApiEngineUnlockRoot(that: this, identitySeed: identitySeed);
 }
