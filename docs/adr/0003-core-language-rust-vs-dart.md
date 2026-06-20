@@ -1,6 +1,6 @@
 # ADR-0003 — Core implementation language: Rust-core engine vs Dart-core
 
-- **Status:** Proposed (reconsiders the language split in ADR-0002)
+- **Status:** Accepted (2026-06-20 — owner chose Approach B; reconsiders the language split in ADR-0002)
 - **Date:** 2026-06-20
 - **Deciders:** project owner + AI agent
 - **Related:** ADR-0001 (the data model this implements), ADR-0002 (transport via iroh), Epic #18.

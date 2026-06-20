@@ -14,6 +14,17 @@ Windows, Linux and macOS**, plus the web.
 > it as a living demonstration of what that collaboration can produce, not a
 > finished product.
 
+## Architecture & roadmap
+
+The app shipped here is the **v1** Flutter implementation. The project is being
+re-architected for **v2** around a **Rust `splittr-core` engine** (event-sourced,
+CRDT-convergent, end-to-end encrypted) with Flutter as a presentation shell.
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the overall architecture map
+  (components, data flow, FFI contract, platform matrix, sequencing).
+- **[docs/adr/](docs/adr/)** — the decision records behind it.
+- The phased roadmap lives in the GitHub issues (see the Epic).
+
 ## Why Flutter?
 
 The brief was native apps for iOS, Android, Windows and Linux from a single

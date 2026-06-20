@@ -1,9 +1,9 @@
 # ADR-0002 — Networking & transport: Rust interop via iroh
 
-- **Status:** Proposed (recommendation; needs owner sign-off before adoption).
-  **Note:** the "core stays pure Dart" premise here is reconsidered by **ADR-0003**
-  (Rust-core engine). The iroh transport choice stands regardless; under a Rust
-  core it is consumed in-process rather than behind a sub-FFI.
+- **Status:** Accepted for the transport choice (iroh).
+  **Superseded in part:** the "core stays pure Dart" premise is superseded by
+  **ADR-0003** (Accepted — Rust-core engine). iroh is now consumed **in-process**
+  by the Rust core rather than behind a sub-FFI.
 - **Date:** 2026-06-20
 - **Deciders:** project owner + AI agent
 - **Related:** ADR-0001 (the core this transports); ADR-0003 (core language); Epic #18; issues #9, #20, #21, #6, #16, #14, #4.

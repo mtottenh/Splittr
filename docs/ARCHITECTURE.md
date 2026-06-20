@@ -1,0 +1,208 @@
+# Splittr — Architecture Overview & Map
+
+> **Status:** living document. This is the *current coherent picture* of the
+> system. The *why* behind each decision lives in the ADRs (`docs/adr/`); the
+> *work* lives in the GitHub issues (Epic #18). When they disagree, an accepted
+> ADR wins and this map should be updated to match.
+
+## 1. What we are building
+
+A local-first, multi-device, multi-user expense-sharing app (a Splitwise
+clone). The defining architectural choice (ADR-0003): a **Rust engine that owns
+all of the logic and data, behind a clean FFI port, with Flutter as a
+presentation shell.**
+
+### Guiding principles
+1. **Local-first & offline-first** — every device holds the full truth; the
+   network only synchronizes.
+2. **Event-sourced** — the source of truth is an append-only log of signed
+   operations; all state is a deterministic *fold* (ADR-0001).
+3. **CRDT-convergent** — any two replicas with the same op-set compute identical
+   balances, with no central authority.
+4. **Deterministic, pure core** — the engine has no hidden I/O in its logic;
+   given the same ops it always produces the same projection. This is what makes
+   it testable and convergent.
+5. **Hexagonal / ports-and-adapters** — the core depends on *traits*
+   (`Store`, `Transport`, `Clock`, `Crypto`); concrete adapters (SQLite, iroh,
+   system clock) plug in at the edges.
+6. **Frontend-agnostic core** — Flutter is the first consumer, not the only
+   possible one; the same engine can power a relay/server, a CLI, or tests.
+7. **Encrypted** — at rest (#22) and end-to-end for synced ops so relays are
+   zero-knowledge (#14).
+8. **Rigorously tested** — property-based convergence testing is the headline
+   bar (ADR-0001 §Testing).
+
+## 2. High-level view
+
+```mermaid
+flowchart TB
+    subgraph Flutter["Flutter shell (Dart) — presentation only"]
+      UI["Screens / widgets / theme"]
+      VM["Riverpod: dispatch(Command) + watch(view-model streams)"]
+    end
+
+    subgraph FFI["FFI port (flutter_rust_bridge)"]
+      API["Command / Query / Subscription API"]
+    end
+
+    subgraph Core["splittr-core (Rust) — owns logic + data"]
+      APP["splittr-app: use-cases (validate, authorize, emit ops)"]
+      CRDT["splittr-crdt: Op, HLC, conflict rules, projection/fold"]
+      DOM["splittr-domain: money, split/balance/debt math, models"]
+      CRY["splittr-crypto: identity keys, signing, E2E"]
+      STO["splittr-store (trait): SQLite/redb op-log + projection"]
+      SYN["splittr-sync (trait): iroh transport"]
+    end
+
+    subgraph Net["Network"]
+      PEERS["Peers (other devices / users)"]
+      RELAY["Zero-knowledge relay (shares splittr-core types)"]
+    end
+
+    UI <--> VM <--> API <--> APP
+    APP --> CRDT --> DOM
+    APP --> CRY
+    APP --> STO
+    APP --> SYN
+    SYN <-->|"iroh: QUIC, gossip, blobs, relay"| PEERS
+    SYN <--> RELAY
+```
+
+## 3. Component map (crate decomposition)
+
+| Crate / layer | Responsibility | Key deps / seams | Issues |
+|---|---|---|---|
+| `splittr-domain` (Rust) | Value types (`Cents`, ids), split/balance/debt math, expense model | `serde`; pure, no I/O | #2, #3, #15, #19 |
+| `splittr-crdt` (Rust) | `Op`, `Hlc`, content-addressed ids, conflict resolution, projection fold | `splittr-domain`, `serde`, `postcard`, `blake3` | #1, #8, #15, #19 |
+| `splittr-crypto` (Rust) | Identity/device keypairs, signing/verify, group-key wrap & rotation | `ed25519-dalek`, `x25519-dalek`, `blake3` | #6, #14, #16 |
+| `splittr-store` (Rust) | Persist op-log + materialized projection; encryption at rest | trait `Store`; `rusqlite`/`redb` | #1, #22 |
+| `splittr-sync` (Rust) | Discovery, transport, set reconciliation, blob transfer | trait `Transport`; `iroh`, `iroh-gossip`, `iroh-blobs` | #9, #20 |
+| `splittr-app` (Rust) | Use-cases: command handling, authorization, query/subscription | composes the above | #19, #23 |
+| `splittr-ffi` (Rust↔Dart) | `flutter_rust_bridge` surface; marshals commands & view-models | FRB codegen → `lib/src/rust/` | #23 |
+| Flutter shell (Dart) | Screens, theme, navigation, reactive binding to FFI streams | `flutter_riverpod`, FRB | #24, +UI of every feature |
+| Backend/services | Payment providers, open-banking aggregator, relay hosting | external | #10, #17, #20 |
+
+## 4. Data flow
+
+**Write path (a user adds an expense):**
+```
+UI intent → Command::AddExpense{…}      (Dart → FFI)
+  → splittr-app validates + authorizes (membership, lock state)
+  → builds splits (splittr-domain), creates a signed Op (splittr-crypto)
+  → appends Op to the log (splittr-store)
+  → materializer folds the new Op into the projection (splittr-crdt)
+  → changed view-models pushed on a Stream  (FFI → Dart)
+  → Riverpod rebuilds the affected widgets
+```
+
+**Sync path:**
+```
+local Op → splittr-sync broadcasts via iroh-gossip; range reconciliation fills gaps
+inbound Op → verify signature + authorization → apply (idempotent, dedup by id)
+  → projection updates → view-model streams → UI
+```
+Balances are never sent over the wire — only ops. Every replica recomputes them
+by folding, guaranteeing agreement (ADR-0001).
+
+## 5. The FFI contract
+
+The port is intentionally small and stable: **commands in, view-models/streams
+out.** Illustrative shape (final names TBD in #23):
+
+```
+dispatch(command: Command) -> Result<(), AppError>          // mutations
+query_*(args) -> ViewModel                                  // one-shot reads
+watch_*(args) -> Stream<ViewModel>                          // reactive reads
+```
+
+The UI owns no business state; it renders view-models and emits commands. This
+keeps the Dart side thin and lets the engine evolve without UI rewrites.
+
+## 6. Data model (summary; full detail in ADR-0001)
+
+- **Op** = `{ id: blake3(content), type, payload, hlc, author_device, author_identity, sig }`.
+- **HLC** `(wall_ms, counter, site_id)` for a causal, deterministic total order.
+- **Conflict rules:** immutable facts → grow-only set (dedup by id); scalars &
+  membership → LWW by HLC; expense edits → **whole-version LWW**; deletes →
+  **monotonic, terminal tombstone (delete-wins)**; claim/merge → alias
+  union-find resolved before balance aggregation.
+
+## 7. Identity, crypto & encryption boundaries
+
+- **Identity** = an Ed25519 keypair; its public key is the permanent user id and
+  doubles as the iroh `NodeId` (#6, ADR-0002).
+- **Devices** each have a keypair + `site_id`; the identity key signs device
+  certificates (#16). Ops are signed by the device key, verified up to the
+  identity.
+- **E2E** (#14): per-group content key, wrapped per recipient (X25519), rotated
+  on member/device removal. Relays see only ciphertext.
+- **At rest** (#22): encrypted store; biometric/PIN app lock (Flutter
+  `local_auth`).
+
+## 8. Repository layout (target)
+
+```
+/                      Flutter app (lib/, android/ ios/ linux/ windows/ macos/ web/)
+  lib/                 Dart UI shell; lib/src/rust/ = generated FRB bindings
+  splittr-core/        Rust workspace
+    crates/
+      splittr-domain/  splittr-crdt/  splittr-crypto/
+      splittr-store/   splittr-sync/  splittr-app/  splittr-ffi/
+  docs/
+    ARCHITECTURE.md    (this file)
+    adr/               decision records
+```
+Monorepo for now (atomic cross-language changes); the Rust core can be extracted
+to its own crate/repo later to be shared with a relay/CLI.
+
+## 9. Build & codegen
+
+- Rust: one Cargo workspace (`Cargo.lock` committed).
+- FFI: `flutter_rust_bridge` codegen (`flutter_rust_bridge_codegen`), built into
+  the Flutter build via `cargokit`/FRB integration; cross-compiled per target
+  (Android NDK ABIs, iOS arm64 + sim, desktop triples, WASM for web).
+- CI matrix builds the FFI crate per platform and runs `cargo test` (incl.
+  proptest) + `flutter test` + `flutter analyze`.
+
+## 10. Platform matrix
+
+| Concern | iOS / Android / Win / Linux / macOS | Web |
+|---|---|---|
+| Rust core via FFI | native lib | WASM |
+| Persistence | SQLite/redb (encrypted) | OPFS-backed (the hard part — see #22/ADR-0003) |
+| Sync transport | iroh: direct (hole-punch) + relay | iroh **relay-only** (no UDP in browser), still E2E |
+| Biometric lock | `local_auth` | n/a (PIN fallback) |
+
+Web is a bonus target (the brief was native iOS/Android/Windows/Linux); a
+degraded web client is acceptable.
+
+## 11. Testing strategy
+
+- **Rust core:** `cargo test` + **`proptest` convergence** (random op
+  orderings/partitions → identical projection), conflict-case tests, rebuild
+  equivalence, idempotency, signature/authorization rejection.
+- **Differential testing during the port:** the v1 Dart split/balance logic is
+  retained temporarily as a **test oracle** — Rust results are checked against it
+  to gain confidence in the port, then the Dart logic is removed.
+- **Flutter:** widget tests for screens; integration tests over the FFI with an
+  in-memory store/transport.
+
+## 12. Build sequencing (how the rewrite proceeds)
+
+1. **Core-first:** build & stabilize `splittr-core` (domain + crdt) with
+   convergence tests — *pure Rust, no Flutter, no network* (#19).
+2. **FFI scaffold:** workspace + `flutter_rust_bridge` + CI cross-compile (#23).
+3. **UI rebind:** replace the Dart domain/state layer with FFI bindings; keep the
+   existing screens/widgets/theme (#24). The v1 JSON store is deleted here (#1).
+4. **Persistence + security:** `splittr-store` + at-rest encryption + app lock
+   (#1, #22).
+5. **Identity:** #6, #16.
+6. **Transport:** iroh behind `Transport` (#20), then invites/claim (#7, #8).
+7. **Value-add features** on the stable core (#3, #4, #5, #10, #11, #12, #13, #17).
+
+## 13. Traceability
+
+- **Decisions:** ADR-0001 (core data model), ADR-0002 (transport: iroh),
+  ADR-0003 (language: Rust core). See `docs/adr/`.
+- **Work:** Epic #18 holds the phased roadmap; the component-map table (§3) links
+  each crate to its issues.
