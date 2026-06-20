@@ -139,6 +139,53 @@ fn redb_persists_across_reopen() {
     assert_eq!(reopened.projection(), project(&ops));
 }
 
+#[test]
+fn encrypted_redb_persists_and_hides_plaintext() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ops.redb");
+    let key = [42u8; 32];
+    let ops = sample_ops();
+
+    {
+        let mut repo = Repository::open(RedbOpStore::open_encrypted(&path, key).unwrap()).unwrap();
+        for o in &ops {
+            repo.append(o).unwrap();
+        }
+        assert_eq!(repo.projection(), project(&ops));
+    }
+
+    // Reopen with the right key → state is intact.
+    let reopened = Repository::open(RedbOpStore::open_encrypted(&path, key).unwrap()).unwrap();
+    assert_eq!(reopened.projection(), project(&ops));
+
+    // The sensitive plaintext ("Trip") must not appear on disk.
+    let raw = std::fs::read(&path).unwrap();
+    assert!(
+        raw.windows(4).all(|w| w != b"Trip"),
+        "expense/group text leaked into the at-rest database"
+    );
+}
+
+#[test]
+fn encrypted_redb_rejects_the_wrong_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ops.redb");
+    let ops = sample_ops();
+
+    {
+        let mut store = RedbOpStore::open_encrypted(&path, [1u8; 32]).unwrap();
+        for o in &ops {
+            store.append(o).unwrap();
+        }
+    }
+
+    let wrong = RedbOpStore::open_encrypted(&path, [2u8; 32]).unwrap();
+    assert!(
+        wrong.ops().is_err(),
+        "decryption must fail under a wrong key"
+    );
+}
+
 // A compact local generator (the rich one lives in splittr-crdt's tests; this
 // only needs enough variety to exercise persistence + replay).
 fn arb_ops() -> impl Strategy<Value = Vec<Op>> {

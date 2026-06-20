@@ -864,13 +864,18 @@ fn wire__crate__api__Engine_open_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_db_path = <String>::sse_decode(&mut deserializer);
             let api_identity_seed = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_db_key = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_site = <u64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || {
-                        let output_ok =
-                            crate::api::Engine::open(api_db_path, api_identity_seed, api_site)?;
+                        let output_ok = crate::api::Engine::open(
+                            api_db_path,
+                            api_identity_seed,
+                            api_db_key,
+                            api_site,
+                        )?;
                         Ok(output_ok)
                     })(),
                 )

@@ -29,6 +29,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 7),
+      dbKey: List.filled(32, 11),
       site: BigInt.one,
     );
 
@@ -75,6 +76,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 9),
+      dbKey: List.filled(32, 13),
       site: BigInt.two,
     );
 

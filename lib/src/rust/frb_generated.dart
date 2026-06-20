@@ -143,6 +143,7 @@ abstract class RustLibApi extends BaseApi {
   Future<Engine> crateApiEngineOpen({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> dbKey,
     required BigInt site,
   });
 
@@ -730,6 +731,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<Engine> crateApiEngineOpen({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> dbKey,
     required BigInt site,
   }) {
     return handler.executeNormal(
@@ -738,6 +740,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbPath, serializer);
           sse_encode_list_prim_u_8_loose(identitySeed, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_u_64(site, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -752,7 +755,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiEngineOpenConstMeta,
-        argValues: [dbPath, identitySeed, site],
+        argValues: [dbPath, identitySeed, dbKey, site],
         apiImpl: this,
       ),
     );
@@ -760,7 +763,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineOpenConstMeta => const TaskConstMeta(
     debugName: "Engine_open",
-    argNames: ["dbPath", "identitySeed", "site"],
+    argNames: ["dbPath", "identitySeed", "dbKey", "site"],
   );
 
   @override

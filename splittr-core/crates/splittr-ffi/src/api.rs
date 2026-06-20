@@ -21,12 +21,21 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// Open (or create) the engine over a redb database at `db_path`, using the
-    /// 32-byte `identity_seed` as the local user's signing key (the platform
-    /// loads/persists this from secure storage — #16).
-    pub fn open(db_path: String, identity_seed: Vec<u8>, site: u64) -> Result<Engine> {
-        let seed = seed32(&identity_seed)?;
-        let store = RedbOpStore::open(&db_path)?;
+    /// Open (or create) the engine over a redb database at `db_path`.
+    ///
+    /// `identity_seed` (32 bytes) is the local user's signing key and `db_key`
+    /// (32 bytes) encrypts the op-log at rest (#22). The platform supplies both
+    /// from secure storage / a keystore (#6/#16) — they are never derived from,
+    /// or stored next to, the database.
+    pub fn open(
+        db_path: String,
+        identity_seed: Vec<u8>,
+        db_key: Vec<u8>,
+        site: u64,
+    ) -> Result<Engine> {
+        let seed = seed32(&identity_seed, "identity seed")?;
+        let key = seed32(&db_key, "db key")?;
+        let store = RedbOpStore::open_encrypted(&db_path, key)?;
         let app = App::new(Identity::from_seed(seed), store, SiteId(site))?;
         Ok(Engine {
             inner: Mutex::new(app),
@@ -190,12 +199,9 @@ impl Engine {
     }
 }
 
-fn seed32(bytes: &[u8]) -> Result<[u8; 32]> {
+fn seed32(bytes: &[u8], what: &str) -> Result<[u8; 32]> {
     if bytes.len() != 32 {
-        return Err(anyhow!(
-            "identity seed must be 32 bytes, got {}",
-            bytes.len()
-        ));
+        return Err(anyhow!("{what} must be 32 bytes, got {}", bytes.len()));
     }
     let mut seed = [0u8; 32];
     seed.copy_from_slice(bytes);

@@ -6,6 +6,7 @@ description = "Persistence for the Splittr op-log + a Repository wiring it to th
 
 [dependencies]
 splittr-crdt = { path = "../splittr-crdt" }
+splittr-crypto = { path = "../splittr-crypto" }
 postcard = { workspace = true }
 redb = { workspace = true }
 thiserror = { workspace = true }

@@ -10,6 +10,9 @@ pub enum StoreError {
     /// The underlying storage backend reported an error.
     #[error("storage backend error: {0}")]
     Backend(String),
+    /// A stored op could not be decrypted — wrong key or tampered data (#22).
+    #[error("decryption failed: wrong key or corrupted data")]
+    Decrypt,
 }
 
 pub type Result<T> = std::result::Result<T, StoreError>;

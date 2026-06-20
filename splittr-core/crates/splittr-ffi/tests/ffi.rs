@@ -7,6 +7,10 @@ fn seed() -> Vec<u8> {
     vec![1u8; 32]
 }
 
+fn db_key() -> Vec<u8> {
+    vec![2u8; 32]
+}
+
 fn db_path(dir: &tempfile::TempDir) -> String {
     dir.path().join("engine.redb").to_str().unwrap().to_string()
 }
@@ -14,7 +18,7 @@ fn db_path(dir: &tempfile::TempDir) -> String {
 #[test]
 fn engine_runs_the_core_flow() {
     let dir = tempfile::tempdir().unwrap();
-    let engine = Engine::open(db_path(&dir), seed(), 1).unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), db_key(), 1).unwrap();
 
     engine.set_my_name("Me".into()).unwrap();
     let me = engine.my_user_id();
@@ -64,7 +68,7 @@ fn engine_runs_the_core_flow() {
 #[test]
 fn rejects_a_malformed_seed() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(Engine::open(db_path(&dir), vec![1, 2, 3], 1).is_err());
+    assert!(Engine::open(db_path(&dir), vec![1, 2, 3], db_key(), 1).is_err());
 }
 
 #[test]
@@ -73,10 +77,10 @@ fn state_persists_across_reopen() {
     let path = db_path(&dir);
 
     let group = {
-        let engine = Engine::open(path.clone(), seed(), 1).unwrap();
+        let engine = Engine::open(path.clone(), seed(), db_key(), 1).unwrap();
         engine.create_group("Trip".into(), vec![]).unwrap()
     };
 
-    let reopened = Engine::open(path, seed(), 1).unwrap();
+    let reopened = Engine::open(path, seed(), db_key(), 1).unwrap();
     assert!(reopened.group_detail(group).is_some());
 }

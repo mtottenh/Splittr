@@ -49,16 +49,21 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<String> myUserId();
 
-  /// Open (or create) the engine over a redb database at `db_path`, using the
-  /// 32-byte `identity_seed` as the local user's signing key (the platform
-  /// loads/persists this from secure storage — #16).
+  /// Open (or create) the engine over a redb database at `db_path`.
+  ///
+  /// `identity_seed` (32 bytes) is the local user's signing key and `db_key`
+  /// (32 bytes) encrypts the op-log at rest (#22). The platform supplies both
+  /// from secure storage / a keystore (#6/#16) — they are never derived from,
+  /// or stored next to, the database.
   static Future<Engine> open({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> dbKey,
     required BigInt site,
   }) => RustLib.instance.api.crateApiEngineOpen(
     dbPath: dbPath,
     identitySeed: identitySeed,
+    dbKey: dbKey,
     site: site,
   );
 

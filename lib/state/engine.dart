@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../src/rust/api.dart';
@@ -11,30 +13,67 @@ import '../src/rust/frb_generated.dart';
 /// Opens the Rust [Engine] exactly once for the app.
 ///
 /// This is the single seam between the Flutter shell and `splittr-core`: it
-/// initialises the FFI, loads (or creates) the local signing identity, and opens
-/// the redb-backed op-log. Everything downstream is presentation.
+/// initialises the FFI, loads (or creates) the local signing identity and the
+/// at-rest encryption key, and opens the encrypted redb-backed op-log.
 final engineProvider = FutureProvider<Engine>((ref) async {
   await RustLib.init();
   final dir = await getApplicationSupportDirectory();
-  final seed = await _loadOrCreateSeed(File('${dir.path}/identity.seed'));
+  final secrets = _SecretStore(dir);
+
+  // The identity seed is the user's key material; the db key encrypts the
+  // op-log at rest (#22). Both live in the OS keystore, never next to the db.
+  final seed = await secrets.loadOrCreate('splittr_identity_seed', 'identity.seed');
+  final dbKey = await secrets.loadOrCreate('splittr_db_key', 'db.key');
+
   return Engine.open(
     dbPath: '${dir.path}/splittr.redb',
     identitySeed: seed,
+    dbKey: dbKey,
     site: _siteFromSeed(seed),
   );
 });
 
-/// The 32-byte identity seed *is* the user's key material. It is persisted
-/// locally; secure-storage hardening is a later concern (#16/#22).
-Future<List<int>> _loadOrCreateSeed(File file) async {
-  if (file.existsSync()) {
-    final bytes = await file.readAsBytes();
-    if (bytes.length == 32) return bytes;
+/// Loads/persists 32-byte secrets, preferring the OS keystore and falling back
+/// to a local file where secure storage is unavailable (e.g. a headless desktop
+/// with no secret service). The fallback still keeps the db encrypted; hardening
+/// that last gap is tracked in #6.
+class _SecretStore {
+  _SecretStore(this._dir);
+
+  final Directory _dir;
+  final FlutterSecureStorage _keystore = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  Future<List<int>> loadOrCreate(String key, String fallbackFile) async {
+    try {
+      final existing = await _keystore.read(key: key);
+      if (existing != null) {
+        final bytes = base64Decode(existing);
+        if (bytes.length == 32) return bytes;
+      }
+      final fresh = _random32();
+      await _keystore.write(key: key, value: base64Encode(fresh));
+      return fresh;
+    } catch (_) {
+      return _fileLoadOrCreate(File('${_dir.path}/$fallbackFile'));
+    }
   }
+
+  Future<List<int>> _fileLoadOrCreate(File file) async {
+    if (file.existsSync()) {
+      final bytes = await file.readAsBytes();
+      if (bytes.length == 32) return bytes;
+    }
+    final fresh = _random32();
+    await file.writeAsBytes(fresh, flush: true);
+    return fresh;
+  }
+}
+
+Uint8List _random32() {
   final rng = Random.secure();
-  final seed = Uint8List.fromList(List.generate(32, (_) => rng.nextInt(256)));
-  await file.writeAsBytes(seed, flush: true);
-  return seed;
+  return Uint8List.fromList(List.generate(32, (_) => rng.nextInt(256)));
 }
 
 /// Derive a stable per-device HLC site id from the seed (the clock tiebreaker).

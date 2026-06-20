@@ -22,6 +22,10 @@ dependencies:
   # (iOS / Android / Windows / Linux / macOS / web all supported).
   path_provider: ^2.1.5
 
+  # OS keystore (Keychain / Keystore / libsecret / DPAPI) for the identity seed
+  # and the at-rest DB encryption key (#6/#22).
+  flutter_secure_storage: ^9.2.2
+
   # Stable, collision-resistant identifiers for entities.
   uuid: ^4.5.1
 
