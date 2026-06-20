@@ -1,0 +1,15 @@
+[package]
+name = "splittr-store"
+version = "0.1.0"
+edition = "2021"
+description = "Persistence for the Splittr op-log + a Repository wiring it to the CRDT fold."
+
+[dependencies]
+splittr-crdt = { path = "../splittr-crdt" }
+postcard = { workspace = true }
+redb = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }

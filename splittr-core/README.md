@@ -12,7 +12,7 @@ Flutter app as a presentation shell over an FFI. See
 | `splittr-domain` | Money (`Cents`), id newtypes, split/balance math | ✅ initial |
 | `splittr-crdt` | `Op`, HLC, content-addressed ids, conflict resolution, projection fold | ✅ initial |
 | `splittr-crypto` | Identity/device keys, signing, E2E (#6/#14/#16) | ⏳ planned |
-| `splittr-store` | Op-log + projection persistence (#1) | ⏳ planned |
+| `splittr-store` | Op-log + projection persistence; `Repository` (#1) | ✅ initial (in-memory + redb) |
 | `splittr-sync` | iroh transport (#9/#20) | ⏳ planned |
 | `splittr-app` | Use-cases / command + query API | ⏳ planned |
 | `splittr-ffi` | flutter_rust_bridge surface (#23) | ⏳ planned |
