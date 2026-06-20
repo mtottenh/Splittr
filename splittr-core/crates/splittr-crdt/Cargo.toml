@@ -6,6 +6,7 @@ description = "Event-sourced, CRDT-convergent core: ops, HLC, conflict resolutio
 
 [dependencies]
 splittr-domain = { path = "../splittr-domain" }
+splittr-crypto = { path = "../splittr-crypto" }
 serde = { workspace = true }
 postcard = { workspace = true }
 blake3 = { workspace = true }

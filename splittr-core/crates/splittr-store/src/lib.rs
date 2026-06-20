@@ -17,4 +17,4 @@ mod repository;
 pub use error::{Result, StoreError};
 pub use op_store::{MemoryOpStore, OpStore};
 pub use redb_store::RedbOpStore;
-pub use repository::Repository;
+pub use repository::{Applied, Repository};

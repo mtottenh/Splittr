@@ -23,6 +23,11 @@ pub fn settlement(i: u8) -> SettlementId {
     SettlementId::new(format!("s{i}"))
 }
 
+/// A deterministic signing key per site, so generated ops are validly signed.
+fn site_key(site: u64) -> SigningKey {
+    SigningKey::from_seed([site as u8; 32])
+}
+
 fn participants(mask: &[bool]) -> Vec<UserId> {
     let mut users: Vec<UserId> = mask
         .iter()
@@ -126,7 +131,7 @@ pub fn op_log() -> impl Strategy<Value = Vec<Op>> {
                     counter: i as u32,
                     site: SiteId(site),
                 };
-                Op::new(hlc, ActorId(format!("site{site}")), kind)
+                Op::signed(hlc, &site_key(site), kind)
             })
             .collect()
     })

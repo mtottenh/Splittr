@@ -5,14 +5,18 @@ use proptest::prelude::*;
 use splittr_crdt::*;
 use splittr_store::*;
 
+fn test_key() -> SigningKey {
+    SigningKey::from_seed([7u8; 32])
+}
+
 fn op(counter: u32, kind: OpKind) -> Op {
-    Op::new(
+    Op::signed(
         Hlc {
             wall_ms: counter as u64,
             counter,
             site: SiteId(0),
         },
-        ActorId("test".into()),
+        &test_key(),
         kind,
     )
 }
@@ -88,9 +92,32 @@ fn repository_projection_matches_fold() {
     let ops = sample_ops();
     let mut repo = Repository::open(MemoryOpStore::new()).unwrap();
     for o in &ops {
-        repo.append(o).unwrap();
+        assert_eq!(repo.append(o).unwrap(), Applied::Stored);
     }
     assert_eq!(repo.projection(), project(&ops));
+}
+
+#[test]
+fn repository_rejects_tampered_op_and_dedups() {
+    let mut repo = Repository::open(MemoryOpStore::new()).unwrap();
+    let valid = op(
+        0,
+        OpKind::CreateGroup {
+            group: GroupId::from("g0"),
+            name: "Trip".into(),
+        },
+    );
+    assert_eq!(repo.append(&valid).unwrap(), Applied::Stored);
+    assert_eq!(repo.append(&valid).unwrap(), Applied::Duplicate);
+
+    // Same id/signature, mutated content → must be rejected, leaving state intact.
+    let mut tampered = valid.clone();
+    tampered.kind = OpKind::CreateGroup {
+        group: GroupId::from("g0"),
+        name: "Hacked".into(),
+    };
+    assert_eq!(repo.append(&tampered).unwrap(), Applied::Rejected);
+    assert_eq!(repo.projection().groups[&GroupId::from("g0")].name, "Trip");
 }
 
 #[test]
@@ -151,13 +178,13 @@ fn arb_ops() -> impl Strategy<Value = Vec<Op>> {
 }
 
 fn op_with(wall: u64, counter: u32, kind: OpKind) -> Op {
-    Op::new(
+    Op::signed(
         Hlc {
             wall_ms: wall,
             counter,
             site: SiteId(0),
         },
-        ActorId("test".into()),
+        &test_key(),
         kind,
     )
 }

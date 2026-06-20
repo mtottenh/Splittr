@@ -1,0 +1,11 @@
+[package]
+name = "splittr-crypto"
+version = "0.1.0"
+edition = "2021"
+description = "Identity keys and Ed25519 signatures for Splittr ops."
+
+[dependencies]
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
+serde = { workspace = true }
+serde-big-array = { workspace = true }

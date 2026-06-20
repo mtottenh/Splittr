@@ -1,21 +1,19 @@
-//! Operations — the immutable, content-addressed units of the log.
+//! Operations — the immutable, content-addressed, signed units of the log.
 
 use serde::{Deserialize, Serialize};
+use splittr_crypto::{sign, verify, PublicKey, Signature, SigningKey};
 use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, UserId};
 
 use crate::clock::Hlc;
 
-/// The identity that authored an op. A placeholder until real keypairs (#6).
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
-pub struct ActorId(pub String);
-
-/// Content-addressed operation id: BLAKE3 over the canonical encoding of
-/// `(hlc, author, kind)`. Equal content ⇒ equal id ⇒ free deduplication.
+/// Content-addressed operation id: BLAKE3 over the canonical encoding of the
+/// op's content `(hlc, author, kind)`. Equal content ⇒ equal id ⇒ free
+/// deduplication; tamper-evident.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 pub struct OpId(pub [u8; 32]);
 
 /// The operation vocabulary (ADR-0001 §Operation vocabulary). A focused subset
-/// that exercises every conflict rule; identity/key ops join with #6/#14/#16.
+/// that exercises every conflict rule; lock/identity ops join with #15/#6/#16.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum OpKind {
     CreateGroup {
@@ -64,33 +62,48 @@ pub enum OpKind {
     },
 }
 
-/// An immutable, content-addressed operation.
+/// An immutable, content-addressed, signed operation.
 ///
-/// Signing/verification (ADR-0001 §operation model) lands with #6/#14/#16; for
-/// now [`Op::author`] is an abstract actor and signatures are out of scope.
+/// `author` is the signer's public key and `sig` is its Ed25519 signature over
+/// the canonical content. [`Op::verify`] checks both the content hash and the
+/// signature; call it at trust boundaries (op ingestion). The pure fold
+/// ([`crate::Materializer`]) trusts the ops it is handed — ingestion is where
+/// authenticity is enforced (ADR-0001).
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Op {
     pub id: OpId,
     pub hlc: Hlc,
-    pub author: ActorId,
+    pub author: PublicKey,
+    pub sig: Signature,
     pub kind: OpKind,
 }
 
 impl Op {
-    /// Build an op, computing its content-addressed id from `(hlc, author, kind)`.
-    pub fn new(hlc: Hlc, author: ActorId, kind: OpKind) -> Self {
-        let id = content_id(&hlc, &author, &kind);
+    /// Build and sign an op with `key`.
+    pub fn signed(hlc: Hlc, key: &SigningKey, kind: OpKind) -> Self {
+        let author = key.public();
+        let content = canonical(&hlc, &author, &kind);
+        let id = OpId(*blake3::hash(&content).as_bytes());
+        let sig = sign(key, &content);
         Op {
             id,
             hlc,
             author,
+            sig,
             kind,
         }
     }
+
+    /// Verify the content hash and the author's signature. Returns `false` for a
+    /// forged, corrupted, or tampered op.
+    pub fn verify(&self) -> bool {
+        let content = canonical(&self.hlc, &self.author, &self.kind);
+        *blake3::hash(&content).as_bytes() == self.id.0 && verify(&self.author, &content, &self.sig)
+    }
 }
 
-fn content_id(hlc: &Hlc, author: &ActorId, kind: &OpKind) -> OpId {
-    let bytes = postcard::to_allocvec(&(hlc, author, kind))
-        .expect("canonical encoding of an op is infallible");
-    OpId(*blake3::hash(&bytes).as_bytes())
+/// The canonical byte encoding of an op's content — the input to both the id
+/// hash and the signature (the single definition of "the bytes that matter").
+fn canonical(hlc: &Hlc, author: &PublicKey, kind: &OpKind) -> Vec<u8> {
+    postcard::to_allocvec(&(hlc, author, kind)).expect("canonical encoding is infallible")
 }

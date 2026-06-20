@@ -2,19 +2,24 @@
 resolver = "2"
 members = [
     "crates/splittr-domain",
+    "crates/splittr-crypto",
     "crates/splittr-crdt",
     "crates/splittr-store",
 ]
 
 # Shared dependency versions for the engine workspace. New crates
-# (splittr-crypto, splittr-sync, splittr-app, splittr-ffi) join as the roadmap
-# progresses — see docs/ARCHITECTURE.md §3.
+# (splittr-sync, splittr-app, splittr-ffi) join as the roadmap progresses —
+# see docs/ARCHITECTURE.md §3.
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 # Canonical, compact binary encoding used to hash ops into content-addressed
 # ids (ADR-0001). Deterministic across platforms.
 postcard = { version = "1", features = ["use-std"] }
 blake3 = "1"
+# Identity / signatures.
+ed25519-dalek = "2"
+getrandom = "0.2"
+serde-big-array = "0.5"
 # Pure-Rust embedded store for the durable op-log (no C toolchain; stores
 # opaque, eventually-encrypted op bytes keyed by content id).
 redb = "2"

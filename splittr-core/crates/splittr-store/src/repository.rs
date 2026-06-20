@@ -7,6 +7,17 @@ use splittr_crdt::{Materializer, Op, Projection};
 use crate::error::Result;
 use crate::op_store::OpStore;
 
+/// Outcome of appending an op.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Applied {
+    /// Newly stored and folded into the projection.
+    Stored,
+    /// Already present (same content id) — a no-op.
+    Duplicate,
+    /// Failed verification (forged/tampered) — not stored, not folded.
+    Rejected,
+}
+
 pub struct Repository<S: OpStore> {
     store: S,
     materializer: Materializer,
@@ -26,15 +37,18 @@ impl<S: OpStore> Repository<S> {
         })
     }
 
-    /// Persist `op` and fold it into the projection. Idempotent: a duplicate op
-    /// (same content id) is neither re-stored nor re-applied. Returns whether
-    /// the op was newly stored.
-    pub fn append(&mut self, op: &Op) -> Result<bool> {
-        let newly_stored = self.store.append(op)?;
-        if newly_stored {
-            self.materializer.apply(op);
+    /// Verify, persist, and fold `op` into the projection. This is the trust
+    /// boundary: a forged/tampered op is [`Applied::Rejected`] (never stored).
+    /// A duplicate (same content id) is [`Applied::Duplicate`]. Idempotent.
+    pub fn append(&mut self, op: &Op) -> Result<Applied> {
+        if !op.verify() {
+            return Ok(Applied::Rejected);
         }
-        Ok(newly_stored)
+        if !self.store.append(op)? {
+            return Ok(Applied::Duplicate);
+        }
+        self.materializer.apply(op);
+        Ok(Applied::Stored)
     }
 
     /// The current read model.

@@ -6,14 +6,18 @@ use std::collections::BTreeMap;
 
 use splittr_crdt::*;
 
+fn test_key() -> SigningKey {
+    SigningKey::from_seed([7u8; 32])
+}
+
 fn op(counter: u32, kind: OpKind) -> Op {
-    Op::new(
+    Op::signed(
         Hlc {
             wall_ms: counter as u64,
             counter,
             site: SiteId(0),
         },
-        ActorId("test".into()),
+        &test_key(),
         kind,
     )
 }
@@ -218,4 +222,25 @@ fn settle_up_suggests_minimal_payments() {
     assert_eq!(transfers.len(), 2, "both debtors pay the single creditor");
     assert!(transfers.iter().all(|t| t.to == UserId::from("a")));
     assert_eq!(transfers.iter().map(|t| t.amount.0).sum::<i64>(), 600);
+}
+
+#[test]
+fn signed_op_verifies_and_tampering_is_detected() {
+    let valid = op(
+        0,
+        OpKind::CreateGroup {
+            group: GroupId::from("g0"),
+            name: "Trip".into(),
+        },
+    );
+    assert!(valid.verify());
+
+    // Mutating the content (without re-signing) breaks both the id hash and the
+    // signature.
+    let mut tampered = valid.clone();
+    tampered.kind = OpKind::CreateGroup {
+        group: GroupId::from("g0"),
+        name: "Hacked".into(),
+    };
+    assert!(!tampered.verify());
 }
