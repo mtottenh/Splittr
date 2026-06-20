@@ -136,8 +136,9 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   identity.
 - **E2E** (#14): per-group content key, wrapped per recipient (X25519), rotated
   on member/device removal. Relays see only ciphertext.
-- **At rest** (#22): encrypted store; biometric/PIN app lock (Flutter
-  `local_auth`).
+- **At rest** (#22): **done** — the op-log is encrypted with XChaCha20-Poly1305
+  (`splittr-crypto::seal`/`open`) under a platform-held key (`flutter_secure_storage`
+  keystore, file fallback). Biometric/PIN app lock (`local_auth`) is still pending.
 
 ## 8. Repository layout (target)
 
