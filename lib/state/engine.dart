@@ -13,7 +13,11 @@ import '../src/rust/api.dart' as ffi
 import '../src/rust/frb_generated.dart';
 
 /// Keystore / fallback-file names for the local key material.
-const _kIdentitySeed = ('splittr_identity_seed', 'identity.seed');
+const kIdentitySeed = ('splittr_identity_seed', 'identity.seed');
+
+/// The identity seed sealed under the app-lock PIN (#34); present only while app
+/// lock is on. A variable-length AEAD blob, so it bypasses the 32-byte helpers.
+const kRootVault = ('splittr_root_vault', 'root.vault');
 const _kIdentityPublic = ('splittr_identity_public', 'identity.pub');
 const _kDeviceSeed = ('splittr_device_seed', 'device.seed');
 const _kDbKey = ('splittr_db_key', 'db.key');
@@ -56,7 +60,7 @@ final engineProvider = FutureProvider<Engine>((ref) async {
 
   // First run: the identity seed must exist (created here, or written by the
   // restore-from-phrase onboarding). A full open self-enrols this device.
-  final identitySeed = await secrets.loadOrCreate(_kIdentitySeed);
+  final identitySeed = await secrets.loadOrCreate(kIdentitySeed);
   final engine = await Engine.open(
     dbPath: dbPath,
     identitySeed: identitySeed,
@@ -67,14 +71,6 @@ final engineProvider = FutureProvider<Engine>((ref) async {
   await secrets.write(
       _kIdentityPublic, _hexToBytes(await engine.identityPublic()));
   return engine;
-});
-
-/// Loads the local identity seed (for deriving the recovery phrase #34, and for
-/// unlocking the root on demand). Present even in device-only operation; it is
-/// just not handed to the engine at open time.
-final identitySeedProvider = FutureProvider<List<int>>((ref) async {
-  final dir = await getApplicationSupportDirectory();
-  return SecretStore(dir).loadOrCreate(_kIdentitySeed);
 });
 
 /// Loads/persists 32-byte key material, preferring the OS keystore and falling
@@ -126,6 +122,39 @@ class SecretStore {
     await write(key, fresh);
     return fresh;
   }
+
+  /// Read a variable-length blob (e.g. the sealed root vault), or null.
+  Future<List<int>?> readBlob((String, String) key) async {
+    try {
+      final existing = await _keystore.read(key: key.$1);
+      if (existing != null) return base64Decode(existing);
+    } catch (_) {
+      // Fall through to the file fallback.
+    }
+    final file = File('${_dir.path}/${key.$2}');
+    if (file.existsSync()) return file.readAsBytes();
+    return null;
+  }
+
+  /// Persist a variable-length blob.
+  Future<void> writeBlob((String, String) key, List<int> bytes) async {
+    try {
+      await _keystore.write(key: key.$1, value: base64Encode(bytes));
+    } catch (_) {
+      await File('${_dir.path}/${key.$2}').writeAsBytes(bytes, flush: true);
+    }
+  }
+
+  /// Remove a value from both the keystore and the file fallback.
+  Future<void> delete((String, String) key) async {
+    try {
+      await _keystore.delete(key: key.$1);
+    } catch (_) {
+      // Ignore: no keystore, only the file fallback to clear.
+    }
+    final file = File('${_dir.path}/${key.$2}');
+    if (file.existsSync()) file.deleteSync();
+  }
 }
 
 Uint8List _random32() {
@@ -153,7 +182,8 @@ final identityEstablishedProvider = FutureProvider<bool>((ref) async {
   final dir = await getApplicationSupportDirectory();
   final secrets = SecretStore(dir);
   return (await secrets.read(_kIdentityPublic)) != null ||
-      (await secrets.read(_kIdentitySeed)) != null;
+      (await secrets.read(kIdentitySeed)) != null ||
+      (await secrets.readBlob(kRootVault)) != null;
 });
 
 /// Establishes the local identity on first run: either a brand-new key (whose
@@ -173,7 +203,7 @@ class _FileIdentityBootstrap implements IdentityBootstrap {
   @override
   Future<String> createNew() async {
     final seed = _random32();
-    await SecretStore(_dir).write(_kIdentitySeed, seed);
+    await SecretStore(_dir).write(kIdentitySeed, seed);
     return ffi.recoveryPhrase(identitySeed: seed);
   }
 
@@ -185,7 +215,7 @@ class _FileIdentityBootstrap implements IdentityBootstrap {
     } catch (_) {
       return false; // not a valid BIP39 phrase for our identity
     }
-    await SecretStore(_dir).write(_kIdentitySeed, seed);
+    await SecretStore(_dir).write(kIdentitySeed, seed);
     return true;
   }
 }

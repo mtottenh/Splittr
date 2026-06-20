@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/app_lock.dart';
 import '../../state/providers.dart';
+import '../../state/root_vault.dart';
+import '../root_access.dart';
 import '../widgets/user_avatar.dart';
 import 'devices_screen.dart';
 
@@ -109,7 +111,9 @@ class AccountScreen extends ConsumerWidget {
   }
 
   Future<void> _showRecoveryPhrase(BuildContext context, WidgetRef ref) async {
-    final phrase = await ref.read(recoveryPhraseProvider.future);
+    final seed = await obtainRootSeed(context, ref);
+    if (seed == null || !context.mounted) return;
+    final phrase = await ref.read(appProvider.notifier).recoveryPhraseFor(seed);
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
@@ -142,7 +146,9 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
-/// App-lock settings: set / change / remove the PIN (#22).
+/// App-lock settings: set / change / remove the PIN (#22). Turning the lock on
+/// also seals the identity (root) seed under the PIN; turning it off (or
+/// changing it) re-keys that vault, so the lock and the root stay in sync (#34).
 class _AppLockTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -152,9 +158,11 @@ class _AppLockTile extends ConsumerWidget {
         ListTile(
           leading: const Icon(Icons.lock_outline),
           title: const Text('App lock'),
-          subtitle: Text(lock.pinSet ? 'PIN enabled' : 'Off'),
+          subtitle: Text(lock.pinSet
+              ? 'PIN enabled · recovery phrase & device changes need it'
+              : 'Off'),
           trailing: TextButton(
-            onPressed: () => _setPin(context, ref),
+            onPressed: () => _setOrChange(context, ref, isChange: lock.pinSet),
             child: Text(lock.pinSet ? 'Change' : 'Set up'),
           ),
         ),
@@ -162,66 +170,132 @@ class _AppLockTile extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.lock_open_outlined),
             title: const Text('Remove app lock'),
-            onTap: () => ref.read(appLockProvider.notifier).clearPin(),
+            onTap: () => _remove(context, ref),
           ),
       ],
     );
   }
 
-  Future<void> _setPin(BuildContext context, WidgetRef ref) async {
-    final pin = TextEditingController();
-    final confirm = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final ok = await showDialog<bool>(
+  Future<void> _setOrChange(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool isChange,
+  }) async {
+    final result = await showDialog<({String? oldPin, String newPin})>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Set a PIN'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: pin,
-                autofocus: true,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'PIN'),
-                validator: (v) =>
-                    (v == null || v.length < 4) ? 'Use at least 4 digits' : null,
-              ),
-              TextFormField(
-                controller: confirm,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Confirm PIN'),
-                validator: (v) => v != pin.text ? 'PINs do not match' : null,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.of(context).pop(true);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (context) => _PinSetupDialog(isChange: isChange),
     );
-    if (ok ?? false) {
-      await ref.read(appLockProvider.notifier).setPin(pin.text);
+    if (result == null || !context.mounted) return;
+
+    final vault = await ref.read(rootVaultProvider.future);
+    if (isChange) {
+      // Re-key the vault under the new PIN; a wrong current PIN must not proceed.
+      final ok =
+          await vault.reseal(oldPin: result.oldPin!, newPin: result.newPin);
+      if (!ok) {
+        if (context.mounted) _toast(context, 'Current PIN is incorrect');
+        return;
+      }
+      await ref.read(appLockProvider.notifier).setPin(result.newPin);
+    } else {
+      await ref.read(appLockProvider.notifier).setPin(result.newPin);
+      await vault.seal(result.newPin);
     }
-    pin.dispose();
-    confirm.dispose();
   }
+
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    final pin = await promptPin(context);
+    if (pin == null || !context.mounted) return;
+    final vault = await ref.read(rootVaultProvider.future);
+    if (!await vault.unseal(pin)) {
+      if (context.mounted) _toast(context, 'Incorrect PIN');
+      return;
+    }
+    await ref.read(appLockProvider.notifier).clearPin();
+  }
+
+  void _toast(BuildContext context, String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+}
+
+/// Collects a new PIN (with confirmation), plus the current PIN when changing.
+/// Owns its controllers and pops `(oldPin, newPin)` or null on cancel.
+class _PinSetupDialog extends StatefulWidget {
+  const _PinSetupDialog({required this.isChange});
+  final bool isChange;
+
+  @override
+  State<_PinSetupDialog> createState() => _PinSetupDialogState();
+}
+
+class _PinSetupDialogState extends State<_PinSetupDialog> {
+  final _current = TextEditingController();
+  final _pin = TextEditingController();
+  final _confirm = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _pin.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.isChange ? 'Change PIN' : 'Set a PIN'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.isChange)
+              _pinField(_current, 'Current PIN', autofocus: true),
+            _pinField(_pin, 'New PIN',
+                autofocus: !widget.isChange,
+                validator: (v) =>
+                    (v == null || v.length < 4) ? 'Use at least 4 digits' : null),
+            _pinField(_confirm, 'Confirm PIN',
+                validator: (v) => v != _pin.text ? 'PINs do not match' : null),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.of(context).pop((
+                oldPin: widget.isChange ? _current.text : null,
+                newPin: _pin.text,
+              ));
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  Widget _pinField(
+    TextEditingController controller,
+    String label, {
+    bool autofocus = false,
+    String? Function(String?)? validator,
+  }) =>
+      TextFormField(
+        controller: controller,
+        autofocus: autofocus,
+        obscureText: true,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: InputDecoration(labelText: label),
+        validator: validator,
+      );
 }

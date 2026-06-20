@@ -141,26 +141,38 @@ class AppNotifier extends AsyncNotifier<AppData> {
   Future<void> deleteSettlement(String settlementId) =>
       _mutate((e) => e.deleteSettlement(settlementId: settlementId));
 
-  Future<void> authorizeDevice(String deviceHex, int site) => _mutateAsRoot(
-      (e) => e.authorizeDevice(deviceHex: deviceHex, site: BigInt.from(site)));
+  Future<void> authorizeDevice(
+    String deviceHex,
+    int site, {
+    required List<int> rootSeed,
+  }) =>
+      _mutateWithRoot(rootSeed,
+          (e) => e.authorizeDevice(deviceHex: deviceHex, site: BigInt.from(site)));
 
-  Future<void> revokeDevice(String deviceHex) =>
-      _mutateAsRoot((e) => e.revokeDevice(deviceHex: deviceHex));
+  Future<void> revokeDevice(String deviceHex, {required List<int> rootSeed}) =>
+      _mutateWithRoot(rootSeed, (e) => e.revokeDevice(deviceHex: deviceHex));
+
+  /// The local recovery phrase for an already-unsealed [rootSeed] (#34). The
+  /// caller obtains the seed via the root vault (prompting for the PIN if app
+  /// lock is on); the seed never lives in a provider.
+  Future<String> recoveryPhraseFor(List<int> rootSeed) async {
+    await ref.read(engineProvider.future); // ensure the FFI is initialised
+    return ffi.recoveryPhrase(identitySeed: rootSeed);
+  }
 
   /// Run a privileged action that needs the identity (root) key: unlock the root
-  /// from the local identity seed, run it, then re-seal — so the root is only in
+  /// from the supplied seed, run it, then re-seal — so the root is only in
   /// memory for the action itself (#34/ADR-0005).
-  Future<T> _mutateAsRoot<T>(Future<T> Function(Engine engine) action) =>
+  Future<T> _mutateWithRoot<T>(
+    List<int> rootSeed,
+    Future<T> Function(Engine engine) action,
+  ) =>
       _mutate((engine) async {
-        final wasUnlocked = await engine.isRootUnlocked();
-        if (!wasUnlocked) {
-          final seed = await ref.read(identitySeedProvider.future);
-          await engine.unlockRoot(identitySeed: seed);
-        }
+        await engine.unlockRoot(identitySeed: rootSeed);
         try {
           return await action(engine);
         } finally {
-          if (!wasUnlocked) await engine.lockRoot();
+          await engine.lockRoot();
         }
       });
 }
@@ -189,9 +201,3 @@ final deviceListProvider = FutureProvider<List<DeviceViewDto>>((ref) async {
   return engine.listDevices();
 });
 
-/// The BIP39 recovery phrase for the local identity (#34).
-final recoveryPhraseProvider = FutureProvider<String>((ref) async {
-  await ref.watch(engineProvider.future); // ensure the FFI is initialised
-  final seed = await ref.watch(identitySeedProvider.future);
-  return ffi.recoveryPhrase(identitySeed: seed);
-});

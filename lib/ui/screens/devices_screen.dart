@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
+import '../root_access.dart';
 
 /// Lists the devices authorized for this identity, with revoke (#16/ADR-0005).
 class DevicesScreen extends ConsumerWidget {
@@ -53,10 +54,19 @@ class _DeviceTile extends ConsumerWidget {
       trailing: (device.thisDevice || device.revoked)
           ? null
           : TextButton(
-              onPressed: () =>
-                  ref.read(appProvider.notifier).revokeDevice(device.device),
+              onPressed: () => _revoke(context, ref),
               child: const Text('Revoke'),
             ),
     );
+  }
+
+  /// Revoking signs a root certificate, so unlock the root first (PIN-prompted
+  /// when app lock is on, #34).
+  Future<void> _revoke(BuildContext context, WidgetRef ref) async {
+    final rootSeed = await obtainRootSeed(context, ref);
+    if (rootSeed == null) return; // cancelled
+    await ref
+        .read(appProvider.notifier)
+        .revokeDevice(device.device, rootSeed: rootSeed);
   }
 }

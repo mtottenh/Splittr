@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/app_lock.dart';
+import '../state/root_vault.dart';
 
 /// Shown when the app is locked (#22): unlock with biometrics (if available) or
 /// the PIN.
@@ -40,11 +41,17 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   }
 
   Future<void> _submit() async {
-    final ok = await ref.read(appLockProvider.notifier).unlockWithPin(_pin.text);
+    final pin = _pin.text;
+    final ok = await ref.read(appLockProvider.notifier).unlockWithPin(pin);
     if (!ok) {
       setState(() => _error = true);
       _pin.clear();
+      return;
     }
+    // Migrate installs whose PIN predates root sealing: now that we hold the
+    // PIN, seal the still-plaintext root under it (a no-op once sealed) (#34).
+    final vault = await ref.read(rootVaultProvider.future);
+    await vault.seal(pin);
   }
 
   @override

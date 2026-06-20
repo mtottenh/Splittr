@@ -144,13 +144,18 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   loaded, so routine use never touches the root. Privileged actions (enrol/revoke)
   briefly `unlock_root` from the identity seed and re-seal. The shell records the
   identity *public* key after first run to drive subsequent device-only opens.
-- **Recovery** (#34, ADR-0005): **done (core)** — the root seed maps to a BIP39
-  24-word phrase (`splittr-crypto::recovery_phrase` / `seed_from_phrase`); a
-  first-run **onboarding** gate creates a new identity (phrase shown once, behind
-  a "written it down" confirmation) or restores one from a phrase. `vault`
-  (`seal_seed`/`open_seed`, Argon2id + the at-rest AEAD) can additionally encrypt
-  the root under the app-lock passphrase; wiring that re-keying to the app lock is
-  the remaining tail.
+- **Recovery** (#34, ADR-0005): **done** — the root seed maps to a BIP39 24-word
+  phrase (`splittr-crypto::recovery_phrase` / `seed_from_phrase`); a first-run
+  **onboarding** gate creates a new identity (phrase shown once, behind a "written
+  it down" confirmation) or restores one from a phrase.
+- **Root at rest under the app lock** (#34, ADR-0005): **done** — when app lock is
+  on, the shell `RootVault` seals the root seed with `vault` (`seal_seed`/`open_seed`,
+  Argon2id + the at-rest AEAD) under the PIN and drops the plaintext, so a
+  keystore/file leak alone can't expose the root. Setting/changing/removing the
+  PIN re-keys (or restores) the vault in lockstep; revealing the phrase or
+  enrolling/revoking a device prompts for the PIN to unseal. Pre-existing PINs are
+  migrated to a sealed vault at the next unlock. The recovery phrase remains the
+  ultimate backup, and the no-app-lock case keeps the seed keystore-held as before.
 - **Enrolment SAS** (#35, ADR-0005): `splittr-crypto::PairingTranscript` derives
   the device-pairing short authentication string (domain-separated BLAKE3 over
   identity + both device keys + challenge) for a MITM-resistant out-of-band
