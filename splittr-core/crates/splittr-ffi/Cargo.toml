@@ -1,0 +1,17 @@
+[package]
+name = "splittr-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "The flutter_rust_bridge API surface over splittr-app (the engine's FFI contract)."
+
+# cdylib: the dynamic library Dart loads. rlib: so the facade can be unit-tested.
+# (staticlib for iOS is added by the build integration when wiring FRB.)
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+splittr-app = { path = "../splittr-app" }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

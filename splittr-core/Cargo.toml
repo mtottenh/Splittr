@@ -6,11 +6,11 @@ members = [
     "crates/splittr-crdt",
     "crates/splittr-store",
     "crates/splittr-app",
+    "crates/splittr-ffi",
 ]
 
-# Shared dependency versions for the engine workspace. New crates
-# (splittr-sync, splittr-ffi) join as the roadmap progresses —
-# see docs/ARCHITECTURE.md §3.
+# Shared dependency versions for the engine workspace. The remaining crate
+# (splittr-sync) joins with the transport work — see docs/ARCHITECTURE.md §3.
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 # Canonical, compact binary encoding used to hash ops into content-addressed
@@ -26,6 +26,7 @@ serde-big-array = "0.5"
 redb = "2"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
 proptest = "1"
 tempfile = "3"
 

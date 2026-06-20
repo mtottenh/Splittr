@@ -15,7 +15,7 @@ Flutter app as a presentation shell over an FFI. See
 | `splittr-store` | Op-log + projection persistence; `Repository` (#1) | ✅ initial (in-memory + redb) |
 | `splittr-sync` | iroh transport (#9/#20) | ⏳ planned |
 | `splittr-app` | Command/query use-cases over `Repository` (#25) | ✅ initial |
-| `splittr-ffi` | flutter_rust_bridge surface (#23) | ⏳ planned |
+| `splittr-ffi` | flutter_rust_bridge surface: `Engine` + DTOs (#23) | ✅ facade (codegen pending) |
 
 ## Develop
 

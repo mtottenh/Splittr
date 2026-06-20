@@ -1,0 +1,6 @@
+# flutter_rust_bridge codegen config (#23).
+# Generates Dart bindings for the splittr-ffi API into lib/src/rust/.
+# Run:  flutter_rust_bridge_codegen generate
+rust_input: crate::api
+rust_root: splittr-core/crates/splittr-ffi
+dart_output: lib/src/rust
