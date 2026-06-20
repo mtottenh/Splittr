@@ -418,7 +418,9 @@ fn foreign_device_authorization_is_ignored() {
         !p.devices.contains_key(&device.public()),
         "an authorize not signed by the identity is ignored"
     );
-    // With no (valid) cert the device acts as its own identity, so its op counts.
+    // Self-sovereign default (ADR-0005): with no valid cert the device acts as
+    // its own identity, so its op counts. Entitlement gating (member-authorized
+    // identity) is deferred to the pre-sync hardening tracked in #38.
     assert!(p.groups.contains_key(&GroupId::from("g")));
 }
 

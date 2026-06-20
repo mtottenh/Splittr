@@ -131,14 +131,17 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
 
 - **Identity** = an Ed25519 keypair; its public key is the permanent user id and
   doubles as the iroh `NodeId` (#6, ADR-0002).
-- **Devices** (#16, ADR-0005): **done** — each device has its own keypair
-  + `site_id`. The identity (root) key signs `AuthorizeDevice` / `RevokeDevice`
-  certificate ops; normal ops are signed by the device key. Trust is two-layer:
-  *authenticity* is checked at ingestion (`Op::verify`), *authorization* is a
-  property of the whole op-set decided in the fold — a device's ops count only
-  while it is authorized and not yet revoked, so revocation converges regardless
-  of arrival order. Devices with no certificate resolve to themselves (the
-  first device self-enrols), keeping single-device data backward compatible.
+- **Devices** (#16, ADR-0005): each device has its own keypair + `site_id`; the
+  identity (root) key signs `AuthorizeDevice` / `RevokeDevice` certs, normal ops
+  are signed by the device key. **Two checks are enforced today:** *authenticity*
+  at ingestion (`Op::verify`) and *device revocation* in the fold — a revoked
+  device's ops (as of their HLC) stop counting, order-independently. An
+  uncertified key acts as its own identity (the self-sovereign default; the first
+  device self-enrols), so single-device data stays backward compatible.
+  **Not yet enforced:** *entitlement* — restricting which identities may affect a
+  given group (member-gated authorization). Because an attacker can self-certify a
+  fresh key, real protection needs the invite/membership trust layer (#7/#8); it
+  must land **before** sync (#14/#20) accepts foreign ops. Tracked in **#38**.
 - **Root kept cold** (#34, ADR-0005): **done** — daily launches open the engine
   with the root **locked** (`Engine::open_device_only`): only the device key is
   loaded, so routine use never touches the root. Privileged actions (enrol/revoke)
