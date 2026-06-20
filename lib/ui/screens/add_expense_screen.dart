@@ -1,35 +1,33 @@
-import 'package:flutter/material.dart' hide Split;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/categories.dart';
 import '../../core/money.dart';
-import '../../domain/models/enums.dart';
-import '../../domain/models/expense.dart';
-import '../../domain/models/split.dart';
-import '../../domain/models/user.dart';
-import '../../domain/services/split_calculator.dart';
-import '../../state/app_state.dart';
+import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
 
-/// Create or edit an expense. Supports four split strategies (equally, exact
-/// amounts, percentages, shares), an optional group, a payer and a category.
+/// How an expense is divided. Maps onto the engine's split plans: [equal] and
+/// [exact] directly, [shares] onto a weighted plan.
+enum SplitMode { equal, exact, shares }
+
+extension on SplitMode {
+  String get hint => switch (this) {
+        SplitMode.equal => 'Split equally between everyone selected.',
+        SplitMode.exact => 'Enter the exact amount each person owes.',
+        SplitMode.shares => 'Enter shares; the cost is divided in proportion.',
+      };
+}
+
+/// Create or edit an expense within a group. Business rules (balancing, split
+/// maths) are enforced by the Rust engine — this screen just gathers input.
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  const AddExpenseScreen({
-    super.key,
-    this.groupId,
-    this.friendId,
-    this.existing,
-  });
+  const AddExpenseScreen({super.key, required this.group, this.existing});
 
-  /// Pre-selected group, if launched from a group.
-  final String? groupId;
-
-  /// Pre-selected friend (non-group expense), if launched from a friend.
-  final String? friendId;
+  final GroupDetailDto group;
 
   /// When set, the screen edits this expense instead of creating one.
-  final Expense? existing;
+  final ExpenseViewDto? existing;
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -40,42 +38,35 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _description = TextEditingController();
   final _amount = TextEditingController();
 
-  /// Per-participant text inputs for exact / percentage / shares modes.
+  /// Per-participant inputs for exact / shares modes.
   final Map<String, TextEditingController> _splitInputs = {};
 
-  String? _selectedGroupId;
   String _categoryId = 'general';
   String _payerId = '';
-  SplitType _splitType = SplitType.equal;
+  SplitMode _splitMode = SplitMode.equal;
   DateTime _date = DateTime.now();
   final Set<String> _participants = {};
 
   bool get _isEditing => widget.existing != null;
+  List<MemberBalanceDto> get _members => widget.group.members;
 
   @override
   void initState() {
     super.initState();
-    final state = ref.read(appControllerProvider);
     final existing = widget.existing;
-
     if (existing != null) {
       _description.text = existing.description;
       _amount.text = Money.toMajor(existing.totalCents).toStringAsFixed(2);
-      _selectedGroupId = existing.groupId;
-      _categoryId = existing.categoryId;
-      _payerId = existing.paidBy.keys.first;
-      _splitType = existing.splitType;
-      _date = existing.date;
-      _participants.addAll(existing.participantIds);
+      _categoryId = existing.category;
+      _payerId = existing.paidBy.isEmpty ? '' : existing.paidBy.first.userId;
+      _date = DateTime.fromMillisecondsSinceEpoch(existing.dateMs);
+      _participants.addAll(existing.splits.map((s) => s.userId));
     } else {
-      _selectedGroupId = widget.groupId;
-      _payerId = state.currentUserId;
-      _participants.addAll(_availablePeople(state).map((u) => u.id));
-      if (widget.friendId != null) {
-        _participants
-          ..clear()
-          ..addAll([state.currentUserId, widget.friendId!]);
-      }
+      _payerId = ref.read(appProvider).requireValue.myUserId;
+      _participants.addAll(_members.map((m) => m.userId));
+    }
+    if (!_members.any((m) => m.userId == _payerId) && _members.isNotEmpty) {
+      _payerId = _members.first.userId;
     }
   }
 
@@ -89,28 +80,36 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     super.dispose();
   }
 
-  List<AppUser> _availablePeople(AppState state) {
-    if (_selectedGroupId != null) {
-      final group = state.groupById(_selectedGroupId!);
-      if (group != null) {
-        return [
-          for (final id in group.memberIds)
-            state.userById(id) ?? AppUser(id: id, name: 'Unknown'),
-        ];
-      }
-    }
-    return List<AppUser>.from(state.users);
-  }
-
-  String get _currencyCode {
-    final state = ref.read(appControllerProvider);
-    final group =
-        _selectedGroupId == null ? null : state.groupById(_selectedGroupId!);
-    return group?.currencyCode ?? 'USD';
-  }
-
   TextEditingController _inputFor(String userId) =>
       _splitInputs.putIfAbsent(userId, () => TextEditingController());
+
+  SplitPlanDto _buildPlan(int totalCents) {
+    final ids = _participants.toList();
+    switch (_splitMode) {
+      case SplitMode.equal:
+        return SplitPlanDto.equal(participants: ids);
+      case SplitMode.exact:
+        return SplitPlanDto.exact(
+          amounts: [
+            for (final id in ids)
+              Payer(
+                userId: id,
+                cents: Money.tryParseToCents(_inputFor(id).text) ?? 0,
+              ),
+          ],
+        );
+      case SplitMode.shares:
+        return SplitPlanDto.weighted(
+          weights: [
+            for (final id in ids)
+              Weight(
+                userId: id,
+                weight: BigInt.from(int.tryParse(_inputFor(id).text.trim()) ?? 0),
+              ),
+          ],
+        );
+    }
+  }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -124,95 +123,40 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       return;
     }
 
-    final List<Split> splits;
-    try {
-      splits = _buildSplits(totalCents);
-    } on SplitValidationException catch (e) {
-      _error(e.message);
-      return;
-    }
+    final input = ExpenseInput(
+      groupId: widget.group.id,
+      description: _description.text.trim(),
+      paidBy: [Payer(userId: _payerId, cents: totalCents)],
+      totalCents: totalCents,
+      split: _buildPlan(totalCents),
+      category: _categoryId,
+      dateMs: _date.millisecondsSinceEpoch,
+    );
 
-    final controller = ref.read(appControllerProvider.notifier);
-    final paidBy = {_payerId: totalCents};
-
+    final notifier = ref.read(appProvider.notifier);
     try {
       if (_isEditing) {
-        await controller.updateExpense(
-          widget.existing!.copyWith(
-            groupId: _selectedGroupId,
-            description: _description.text,
-            totalCents: totalCents,
-            currencyCode: _currencyCode,
-            paidBy: paidBy,
-            splits: splits,
-            splitType: _splitType,
-            categoryId: _categoryId,
-            date: _date,
-          ),
-        );
+        await notifier.editExpense(widget.existing!.id, input);
       } else {
-        await controller.addExpense(
-          groupId: _selectedGroupId,
-          description: _description.text,
-          totalCents: totalCents,
-          currencyCode: _currencyCode,
-          paidBy: paidBy,
-          splits: splits,
-          splitType: _splitType,
-          categoryId: _categoryId,
-          date: _date,
-        );
+        await notifier.addExpense(input);
       }
-    } on StateError catch (_) {
-      _error('The amounts entered do not add up to the total.');
+    } catch (e) {
+      _error('Could not save: the amounts must add up to the total.');
       return;
     }
-
     if (mounted) Navigator.of(context).pop();
   }
 
-  List<Split> _buildSplits(int totalCents) {
-    final ids = _participants.toList();
-    switch (_splitType) {
-      case SplitType.equal:
-        return SplitCalculator.equal(totalCents: totalCents, userIds: ids);
-      case SplitType.exact:
-        final map = <String, int>{
-          for (final id in ids)
-            id: Money.tryParseToCents(_inputFor(id).text) ?? 0,
-        };
-        return SplitCalculator.exact(totalCents: totalCents, exactCents: map);
-      case SplitType.percentage:
-        final map = <String, double>{
-          for (final id in ids)
-            id: double.tryParse(_inputFor(id).text.trim()) ?? 0,
-        };
-        return SplitCalculator.percentage(
-            totalCents: totalCents, percentages: map);
-      case SplitType.shares:
-        final map = <String, int>{
-          for (final id in ids)
-            id: int.tryParse(_inputFor(id).text.trim()) ?? 0,
-        };
-        return SplitCalculator.shares(totalCents: totalCents, shares: map);
-    }
+  void _error(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _error(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
+  String _label(MemberBalanceDto m) =>
+      m.userId == ref.read(appProvider).requireValue.myUserId ? 'You' : m.name;
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(appControllerProvider);
-    final people = _availablePeople(state);
-    // Keep the payer valid if the participant set changed.
-    if (!people.any((u) => u.id == _payerId) && people.isNotEmpty) {
-      _payerId = people.first.id;
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit expense' : 'Add expense'),
@@ -222,7 +166,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               icon: const Icon(Icons.delete_outline),
               onPressed: () async {
                 await ref
-                    .read(appControllerProvider.notifier)
+                    .read(appProvider.notifier)
                     .deleteExpense(widget.existing!.id);
                 if (context.mounted) Navigator.of(context).pop();
               },
@@ -235,8 +179,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (widget.groupId == null && widget.friendId == null)
-              _groupSelector(state),
             Row(
               children: [
                 _CategoryButton(
@@ -267,10 +209,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Amount',
-                prefixText: '$_currencyCode ',
+                prefixText: 'USD ',
               ),
+              onChanged: (_) => setState(() {}),
               validator: (v) {
                 final cents = Money.tryParseToCents(v ?? '');
                 if (cents == null || cents <= 0) return 'Enter an amount';
@@ -278,7 +221,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               },
             ),
             const SizedBox(height: 16),
-            _paidByRow(people, state),
+            _paidByRow(),
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -293,23 +236,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             const Divider(height: 24),
             Text('Split', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            SegmentedButton<SplitType>(
+            SegmentedButton<SplitMode>(
               segments: const [
-                ButtonSegment(value: SplitType.equal, label: Text('=')),
-                ButtonSegment(value: SplitType.exact, label: Text('1.23')),
-                ButtonSegment(value: SplitType.percentage, label: Text('%')),
-                ButtonSegment(value: SplitType.shares, label: Text('Shares')),
+                ButtonSegment(value: SplitMode.equal, label: Text('=')),
+                ButtonSegment(value: SplitMode.exact, label: Text('1.23')),
+                ButtonSegment(value: SplitMode.shares, label: Text('Shares')),
               ],
-              selected: {_splitType},
-              onSelectionChanged: (s) => setState(() => _splitType = s.first),
+              selected: {_splitMode},
+              onSelectionChanged: (s) => setState(() => _splitMode = s.first),
             ),
             const SizedBox(height: 8),
-            Text(
-              _splitType.label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            Text(_splitMode.hint,
+                style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
-            ..._buildParticipantRows(people),
+            ..._participantRows(),
             const SizedBox(height: 80),
           ],
         ),
@@ -317,45 +257,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
   }
 
-  Widget _groupSelector(AppState state) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: DropdownButtonFormField<String?>(
-        initialValue: _selectedGroupId,
-        decoration: const InputDecoration(labelText: 'Group'),
-        items: [
-          const DropdownMenuItem(value: null, child: Text('Non-group expense')),
-          for (final g in state.groups)
-            DropdownMenuItem(value: g.id, child: Text('${g.emoji} ${g.name}')),
-        ],
-        onChanged: (value) => setState(() {
-          _selectedGroupId = value;
-          final people = _availablePeople(ref.read(appControllerProvider));
-          _participants
-            ..clear()
-            ..addAll(people.map((u) => u.id));
-        }),
-      ),
-    );
-  }
-
-  Widget _paidByRow(List<AppUser> people, AppState state) {
+  Widget _paidByRow() {
     return Row(
       children: [
         const Text('Paid by'),
         const SizedBox(width: 12),
         Expanded(
           child: DropdownButtonFormField<String>(
-            initialValue: people.any((u) => u.id == _payerId)
+            initialValue: _members.any((m) => m.userId == _payerId)
                 ? _payerId
-                : (people.isEmpty ? null : people.first.id),
+                : (_members.isEmpty ? null : _members.first.userId),
             isExpanded: true,
             items: [
-              for (final u in people)
-                DropdownMenuItem(
-                  value: u.id,
-                  child: Text(u.id == state.currentUserId ? 'You' : u.name),
-                ),
+              for (final m in _members)
+                DropdownMenuItem(value: m.userId, child: Text(_label(m))),
             ],
             onChanged: (value) =>
                 setState(() => _payerId = value ?? _payerId),
@@ -365,26 +280,23 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
   }
 
-  List<Widget> _buildParticipantRows(List<AppUser> people) {
+  List<Widget> _participantRows() {
     final totalCents = Money.tryParseToCents(_amount.text) ?? 0;
+    final equalShare =
+        _participants.isEmpty ? 0 : totalCents ~/ _participants.length;
     return [
-      for (final user in people)
+      for (final m in _members)
         _ParticipantRow(
-          user: user,
-          isCurrentUser:
-              user.id == ref.read(appControllerProvider).currentUserId,
-          selected: _participants.contains(user.id),
-          splitType: _splitType,
-          controller: _inputFor(user.id),
-          currencyCode: _currencyCode,
-          equalShareCents: _participants.isEmpty
-              ? 0
-              : totalCents ~/ _participants.length,
+          label: _label(m),
+          selected: _participants.contains(m.userId),
+          mode: _splitMode,
+          controller: _inputFor(m.userId),
+          equalShareCents: equalShare,
           onToggle: (checked) => setState(() {
             if (checked) {
-              _participants.add(user.id);
+              _participants.add(m.userId);
             } else {
-              _participants.remove(user.id);
+              _participants.remove(m.userId);
             }
           }),
           onInputChanged: () => setState(() {}),
@@ -405,23 +317,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
 class _ParticipantRow extends StatelessWidget {
   const _ParticipantRow({
-    required this.user,
-    required this.isCurrentUser,
+    required this.label,
     required this.selected,
-    required this.splitType,
+    required this.mode,
     required this.controller,
-    required this.currencyCode,
     required this.equalShareCents,
     required this.onToggle,
     required this.onInputChanged,
   });
 
-  final AppUser user;
-  final bool isCurrentUser;
+  final String label;
   final bool selected;
-  final SplitType splitType;
+  final SplitMode mode;
   final TextEditingController controller;
-  final String currencyCode;
   final int equalShareCents;
   final ValueChanged<bool> onToggle;
   final VoidCallback onInputChanged;
@@ -430,14 +338,12 @@ class _ParticipantRow extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget? trailing;
     if (selected) {
-      switch (splitType) {
-        case SplitType.equal:
-          trailing = Text(Money.format(equalShareCents, code: currencyCode));
-        case SplitType.exact:
-          trailing = _input(suffix: currencyCode);
-        case SplitType.percentage:
-          trailing = _input(suffix: '%');
-        case SplitType.shares:
+      switch (mode) {
+        case SplitMode.equal:
+          trailing = Text(Money.format(equalShareCents));
+        case SplitMode.exact:
+          trailing = _input(suffix: 'USD');
+        case SplitMode.shares:
           trailing = _input(suffix: 'sh');
       }
     }
@@ -448,7 +354,7 @@ class _ParticipantRow extends StatelessWidget {
       value: selected,
       onChanged: (v) => onToggle(v ?? false),
       secondary: trailing,
-      title: Text(isCurrentUser ? 'You' : user.name),
+      title: Text(label),
     );
   }
 
@@ -462,10 +368,7 @@ class _ParticipantRow extends StatelessWidget {
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
         ],
-        decoration: InputDecoration(
-          isDense: true,
-          suffixText: suffix,
-        ),
+        decoration: InputDecoration(isDense: true, suffixText: suffix),
         onChanged: (_) => onInputChanged(),
       ),
     );

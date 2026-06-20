@@ -39,6 +39,10 @@ impl Engine {
         self.lock().me().to_string()
     }
 
+    pub fn my_name(&self) -> Option<String> {
+        self.lock().my_name()
+    }
+
     pub fn set_my_name(&self, name: String) -> Result<()> {
         self.lock().set_my_name(&name)?;
         Ok(())

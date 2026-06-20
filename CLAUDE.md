@@ -17,12 +17,14 @@ before changing the core; the GitHub **Epic** is the roadmap.
 - **Money is integer cents.** Splits must reconcile exactly.
 - **Determinism**: no map-iteration-order / wall-clock / locale dependence in the
   fold. The convergence property test is the guardrail — keep it green.
-- **Flutter is presentation only.** Business logic belongs in Rust.
-- The v1 Dart logic in `lib/` is being retired; don't add new business logic there.
+- **Flutter is presentation only.** Business logic belongs in Rust. The v1 Dart
+  domain/services have been removed; `lib/` now only renders engine view-models
+  (via the Riverpod facade in `lib/state/`) — never add business logic there.
 
 ## Where things live
 - `splittr-core/crates/splittr-{domain,crdt,store,...}` — the engine.
-- `lib/` — Flutter app (v1, being migrated to call the FFI).
+- `lib/` — Flutter shell; `lib/state/` is the engine-backed Riverpod facade,
+  `lib/src/rust/` the generated FRB bindings.
 - `docs/adr/` — decisions; `docs/ARCHITECTURE.md` — the current map.
 
 ## Dev commands

@@ -2,39 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../domain/models/activity.dart';
-import '../../domain/models/enums.dart';
+import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
 import '../widgets/empty_state.dart';
 
-/// Reverse-chronological feed of everything that has happened.
+/// Reverse-chronological feed derived from the signed op-log.
 class ActivityScreen extends ConsumerWidget {
   const ActivityScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activities = ref.watch(appControllerProvider).activities;
+    final activity = ref.watch(appProvider).requireValue.activity;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Activity')),
-      body: activities.isEmpty
+      body: activity.isEmpty
           ? const EmptyState(
               icon: Icons.history,
               title: 'No activity yet',
               message: 'Your expenses and payments will show up here.',
             )
           : ListView.separated(
-              itemCount: activities.length,
+              itemCount: activity.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) => _ActivityTile(activities[i]),
+              itemBuilder: (context, i) => _ActivityTile(activity[i]),
             ),
     );
   }
 }
 
 class _ActivityTile extends StatelessWidget {
-  const _ActivityTile(this.activity);
-  final Activity activity;
+  const _ActivityTile(this.entry);
+  final ActivityEntryDto entry;
 
   @override
   Widget build(BuildContext context) {
@@ -42,23 +41,26 @@ class _ActivityTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: theme.colorScheme.surfaceContainerHighest,
-        child: Icon(_iconFor(activity.type), size: 20),
+        child: Icon(_iconFor(entry.kind), size: 20),
       ),
-      title: Text(activity.summary),
-      subtitle: Text(_relativeTime(activity.timestamp)),
+      title: Text(entry.summary),
+      subtitle: Text(_relativeTime(entry.wallMs)),
     );
   }
 
-  IconData _iconFor(ActivityType type) => switch (type) {
-        ActivityType.expenseAdded => Icons.add_circle_outline,
-        ActivityType.expenseUpdated => Icons.edit_outlined,
-        ActivityType.expenseDeleted => Icons.delete_outline,
-        ActivityType.settlement => Icons.swap_horiz,
-        ActivityType.groupCreated => Icons.group_add,
-        ActivityType.memberAdded => Icons.person_add,
+  IconData _iconFor(String kind) => switch (kind) {
+        'expense' => Icons.add_circle_outline,
+        'edit' => Icons.edit_outlined,
+        'delete' => Icons.delete_outline,
+        'settlement' => Icons.swap_horiz,
+        'group' => Icons.group_add,
+        'person' => Icons.person_add,
+        _ => Icons.history,
       };
 
-  String _relativeTime(DateTime time) {
+  String _relativeTime(int wallMs) {
+    if (wallMs <= 0) return '';
+    final time = DateTime.fromMillisecondsSinceEpoch(wallMs);
     final diff = DateTime.now().difference(time);
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';

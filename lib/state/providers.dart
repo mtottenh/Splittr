@@ -1,80 +1,101 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/app_repository.dart';
-import '../data/persistence.dart';
-import '../domain/models/balance.dart';
-import '../domain/services/balance_calculator.dart';
-import 'app_controller.dart';
-import 'app_state.dart';
+import '../src/rust/api.dart';
+import '../src/rust/dto.dart';
+import 'app_data.dart';
+import 'engine.dart';
 
-/// The storage backend. Native platforms persist to a JSON file; the web has
-/// no documents directory, so it falls back to in-memory storage. Overridden in
-/// tests with [InMemoryPersistence].
-final persistenceProvider = Provider<Persistence>(
-  (ref) => kIsWeb ? InMemoryPersistence() : FilePersistence(),
-);
+/// The app's single source of truth: an engine-backed snapshot plus every
+/// mutation the UI needs. Mutations call the Rust engine, then refresh the
+/// snapshot so all watchers update. Business logic lives in Rust — this is a
+/// thin async facade.
+final appProvider = AsyncNotifierProvider<AppNotifier, AppData>(AppNotifier.new);
 
-final repositoryProvider = Provider<AppRepository>(
-  (ref) => AppRepository(ref.watch(persistenceProvider)),
-);
+class AppNotifier extends AsyncNotifier<AppData> {
+  @override
+  Future<AppData> build() async {
+    final engine = await ref.watch(engineProvider.future);
+    return _snapshot(engine);
+  }
 
-/// The app's single source of truth.
-final appControllerProvider =
-    StateNotifierProvider<AppController, AppState>((ref) {
-  return AppController(ref.watch(repositoryProvider));
+  Future<AppData> _snapshot(Engine engine) async {
+    var name = await engine.myName();
+    if (name == null) {
+      // First launch: seed a profile so the local user has a name.
+      await engine.setMyName(name: 'You');
+      name = 'You';
+    }
+    return AppData(
+      myUserId: await engine.myUserId(),
+      myName: name,
+      groups: await engine.groups(),
+      friends: await engine.friends(),
+      activity: await engine.activity(),
+    );
+  }
+
+  /// Apply [action] to the engine, then rebuild the snapshot in place.
+  Future<T> _mutate<T>(Future<T> Function(Engine engine) action) async {
+    final engine = await ref.read(engineProvider.future);
+    final result = await action(engine);
+    state = AsyncData(await _snapshot(engine));
+    return result;
+  }
+
+  Future<void> setMyName(String name) =>
+      _mutate((e) => e.setMyName(name: name));
+
+  Future<String> addPerson(String name) =>
+      _mutate((e) => e.addPerson(name: name));
+
+  Future<String> createGroup(String name, List<String> memberIds) =>
+      _mutate((e) => e.createGroup(name: name, memberIds: memberIds));
+
+  Future<void> renameGroup(String groupId, String name) =>
+      _mutate((e) => e.renameGroup(groupId: groupId, name: name));
+
+  Future<void> addMember(String groupId, String userId) =>
+      _mutate((e) => e.addMember(groupId: groupId, userId: userId));
+
+  Future<String> addExpense(ExpenseInput input) =>
+      _mutate((e) => e.addExpense(input: input));
+
+  Future<void> editExpense(String expenseId, ExpenseInput input) =>
+      _mutate((e) => e.editExpense(expenseId: expenseId, input: input));
+
+  Future<void> deleteExpense(String expenseId) =>
+      _mutate((e) => e.deleteExpense(expenseId: expenseId));
+
+  Future<String> recordSettlement({
+    required String groupId,
+    required String from,
+    required String to,
+    required int amountCents,
+  }) =>
+      _mutate((e) => e.recordSettlement(
+            groupId: groupId,
+            from: from,
+            to: to,
+            amountCents: amountCents,
+          ));
+
+  Future<void> deleteSettlement(String settlementId) =>
+      _mutate((e) => e.deleteSettlement(settlementId: settlementId));
+}
+
+/// Detail for a single group. Re-fetches whenever [appProvider] changes (i.e.
+/// after any mutation).
+final groupDetailProvider =
+    FutureProvider.family<GroupDetailDto?, String>((ref, groupId) async {
+  ref.watch(appProvider);
+  final engine = await ref.watch(engineProvider.future);
+  return engine.groupDetail(groupId: groupId);
 });
 
-/// Runs one-time startup: loads persisted data or seeds a fresh profile. The
-/// UI watches this to show a splash until the state is ready.
-final bootstrapProvider = FutureProvider<void>((ref) async {
-  await ref.read(appControllerProvider.notifier).bootstrap();
-});
-
-/// Net balances across the *entire* ledger (used for friend totals and the
-/// top-level "you are owed / you owe" summary).
-final overallNetBalancesProvider = Provider<Map<String, int>>((ref) {
-  final state = ref.watch(appControllerProvider);
-  return BalanceCalculator.netBalances(
-    expenses: state.expenses,
-    settlements: state.settlements,
-  );
-});
-
-/// Pairwise debts across the entire ledger, for friend-to-friend balances.
-final overallPairwiseProvider = Provider<List<DebtEdge>>((ref) {
-  final state = ref.watch(appControllerProvider);
-  return BalanceCalculator.pairwiseDebts(
-    expenses: state.expenses,
-    settlements: state.settlements,
-  );
-});
-
-/// The current user's overall net position in cents (positive = owed to you).
-final currentUserNetProvider = Provider<int>((ref) {
-  final state = ref.watch(appControllerProvider);
-  final net = ref.watch(overallNetBalancesProvider);
-  return net[state.currentUserId] ?? 0;
-});
-
-/// Net balances within a single group, keyed by group id.
-final groupNetBalancesProvider =
-    Provider.family<Map<String, int>, String>((ref, groupId) {
-  final state = ref.watch(appControllerProvider);
-  return BalanceCalculator.netBalances(
-    expenses: state.expensesForGroup(groupId),
-    settlements: state.settlementsForGroup(groupId),
-  );
-});
-
-/// Suggested settle-up payments within a group, honouring its simplify setting.
-final groupSettleUpProvider =
-    Provider.family<List<DebtEdge>, String>((ref, groupId) {
-  final state = ref.watch(appControllerProvider);
-  final group = state.groupById(groupId);
-  return BalanceCalculator.settleUpSuggestions(
-    expenses: state.expensesForGroup(groupId),
-    settlements: state.settlementsForGroup(groupId),
-    simplify: group?.simplifyDebts ?? true,
-  );
+/// Detail for a single friend, refreshed alongside [appProvider].
+final friendDetailProvider =
+    FutureProvider.family<FriendDetailDto?, String>((ref, userId) async {
+  ref.watch(appProvider);
+  final engine = await ref.watch(engineProvider.future);
+  return engine.friendDetail(userId: userId);
 });

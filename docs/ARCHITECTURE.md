@@ -181,19 +181,22 @@ degraded web client is acceptable.
 - **Rust core:** `cargo test` + **`proptest` convergence** (random op
   orderings/partitions → identical projection), conflict-case tests, rebuild
   equivalence, idempotency, signature/authorization rejection.
-- **Differential testing during the port:** the v1 Dart split/balance logic is
-  retained temporarily as a **test oracle** — Rust results are checked against it
-  to gain confidence in the port, then the Dart logic is removed.
-- **Flutter:** widget tests for screens; integration tests over the FFI with an
-  in-memory store/transport.
+- **Port complete:** the v1 Dart split/balance/debt logic has been **removed**
+  (#24); all business logic now lives in (and is property-tested by) the Rust
+  core. The Flutter shell is presentation only.
+- **Flutter:** `test/engine_bridge_test.dart` drives the real engine over the FFI
+  end-to-end (groups → expenses → balances → friends/activity → settlement),
+  loading the host-built `cdylib`; widget tests cover screens.
 
 ## 12. Build sequencing (how the rewrite proceeds)
 
 1. **Core-first:** build & stabilize `splittr-core` (domain + crdt) with
    convergence tests — *pure Rust, no Flutter, no network* (#19).
 2. **FFI scaffold:** workspace + `flutter_rust_bridge` + CI cross-compile (#23).
-3. **UI rebind:** replace the Dart domain/state layer with FFI bindings; keep the
-   existing screens/widgets/theme (#24). The v1 JSON store is deleted here (#1).
+3. **UI rebind (done):** the Dart domain/state layer is replaced with an
+   engine-backed Riverpod facade over the FFI; the screens/widgets/theme are
+   retained (#24). The v1 domain models, services and JSON store are deleted.
+   Runtime bundling of the native lib (`cargokit`) is the remaining tail of #23.
 4. **Persistence + security:** `splittr-store` + at-rest encryption + app lock
    (#1, #22).
 5. **Identity:** #6, #16.

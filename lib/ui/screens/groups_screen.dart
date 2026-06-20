@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/money.dart';
 import '../../core/theme.dart';
-import '../../domain/models/group.dart';
+import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
 import '../widgets/balance_label.dart';
 import '../widgets/empty_state.dart';
@@ -17,8 +17,7 @@ class GroupsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
-    final overallNet = ref.watch(currentUserNetProvider);
+    final data = ref.watch(appProvider).requireValue;
 
     return Scaffold(
       appBar: AppBar(
@@ -31,7 +30,7 @@ class GroupsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: state.groups.isEmpty
+      body: data.groups.isEmpty
           ? EmptyState(
               icon: Icons.groups,
               title: 'No groups yet',
@@ -46,9 +45,8 @@ class GroupsScreen extends ConsumerWidget {
           : ListView(
               padding: const EdgeInsets.only(bottom: 96),
               children: [
-                _OverallSummary(netCents: overallNet),
-                for (final group in state.groups)
-                  _GroupTile(group: group),
+                _OverallSummary(netCents: data.overallNetCents),
+                for (final group in data.groups) _GroupTile(group: group),
               ],
             ),
     );
@@ -88,33 +86,26 @@ class _OverallSummary extends StatelessWidget {
   }
 }
 
-class _GroupTile extends ConsumerWidget {
+class _GroupTile extends StatelessWidget {
   const _GroupTile({required this.group});
-  final Group group;
+  final GroupSummaryDto group;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
-    final net = ref.watch(groupNetBalancesProvider(group.id));
-    final myNet = net[state.currentUserId] ?? 0;
-
+  Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Text(group.emoji, style: const TextStyle(fontSize: 20)),
+          child: const Icon(Icons.groups),
         ),
         title: Text(group.name,
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
-          '${group.memberIds.length} '
-          '${group.memberIds.length == 1 ? "member" : "members"}',
+          '${group.memberCount} '
+          '${group.memberCount == 1 ? "member" : "members"}',
         ),
-        trailing: BalanceLabel(
-          netCents: myNet,
-          currencyCode: group.currencyCode,
-        ),
+        trailing: BalanceLabel(netCents: group.myNetCents, currencyCode: 'USD'),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => GroupDetailScreen(groupId: group.id),

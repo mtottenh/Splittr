@@ -52,6 +52,15 @@ impl<S: OpStore> App<S> {
         })
     }
 
+    /// The local user's display name, if a profile has been set.
+    pub fn my_name(&self) -> Option<String> {
+        self.repo
+            .projection()
+            .users
+            .get(self.me())
+            .map(|r| r.name.clone())
+    }
+
     /// Create a placeholder person (#2) and return their id.
     pub fn add_person(&mut self, name: &str) -> Result<UserId> {
         let user = UserId::new(format!("user:{}", Uuid::new_v4()));

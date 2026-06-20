@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/categories.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
-import '../../domain/models/expense.dart';
-import '../../domain/models/settlement.dart';
+import '../../src/rust/dto.dart';
 import '../../state/providers.dart';
 import '../widgets/add_person_dialog.dart';
 import '../widgets/balance_label.dart';
@@ -22,36 +21,43 @@ class GroupDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
-    final group = state.groupById(groupId);
-    if (group == null) {
-      return const Scaffold(body: Center(child: Text('Group not found')));
-    }
+    final detail = ref.watch(groupDetailProvider(groupId));
 
+    return detail.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
+      data: (group) {
+        if (group == null) {
+          return const Scaffold(body: Center(child: Text('Group not found')));
+        }
+        return _GroupDetail(group: group);
+      },
+    );
+  }
+}
+
+class _GroupDetail extends ConsumerWidget {
+  const _GroupDetail({required this.group});
+  final GroupDetailDto group;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              Text(group.emoji),
-              const SizedBox(width: 8),
-              Expanded(child: Text(group.name, overflow: TextOverflow.ellipsis)),
-            ],
-          ),
+          title: Text(group.name, overflow: TextOverflow.ellipsis),
           actions: [
             IconButton(
               tooltip: 'Add member',
               icon: const Icon(Icons.person_add_alt),
               onPressed: () => _addMember(context, ref),
             ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'delete') _confirmDelete(context, ref);
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'delete', child: Text('Delete group')),
-              ],
+            IconButton(
+              tooltip: 'Rename group',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => _rename(context, ref),
             ),
           ],
           bottom: const TabBar(
@@ -61,7 +67,7 @@ class GroupDetailScreen extends ConsumerWidget {
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => AddExpenseScreen(groupId: groupId),
+              builder: (_) => AddExpenseScreen(group: group),
               fullscreenDialog: true,
             ),
           ),
@@ -70,8 +76,8 @@ class GroupDetailScreen extends ConsumerWidget {
         ),
         body: TabBarView(
           children: [
-            _ExpensesTab(groupId: groupId),
-            _BalancesTab(groupId: groupId),
+            _ExpensesTab(group: group),
+            _BalancesTab(group: group),
           ],
         ),
       ),
@@ -79,10 +85,12 @@ class GroupDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _addMember(BuildContext context, WidgetRef ref) async {
-    final state = ref.read(appControllerProvider);
-    final group = state.groupById(groupId)!;
-    final candidates = state.users
-        .where((u) => !group.memberIds.contains(u.id))
+    final memberIds = group.members.map((m) => m.userId).toSet();
+    final candidates = ref
+        .read(appProvider)
+        .requireValue
+        .friends
+        .where((f) => !memberIds.contains(f.userId))
         .toList();
 
     final selected = await showModalBottomSheet<String>(
@@ -95,71 +103,84 @@ class GroupDetailScreen extends ConsumerWidget {
               leading: const Icon(Icons.person_add),
               title: const Text('Add a new person'),
               onTap: () async {
-                final user = await showAddPersonDialog(context, ref);
-                if (context.mounted) Navigator.of(context).pop(user?.id);
+                final id = await showAddPersonDialog(context, ref);
+                if (context.mounted) Navigator.of(context).pop(id);
               },
             ),
             const Divider(),
-            for (final u in candidates)
+            for (final f in candidates)
               ListTile(
-                leading: UserAvatar(user: u),
-                title: Text(u.name),
-                onTap: () => Navigator.of(context).pop(u.id),
+                leading: UserAvatar(name: f.name, id: f.userId),
+                title: Text(f.name),
+                onTap: () => Navigator.of(context).pop(f.userId),
               ),
           ],
         ),
       ),
     );
     if (selected != null) {
-      await ref
-          .read(appControllerProvider.notifier)
-          .addMemberToGroup(groupId, selected);
+      await ref.read(appProvider.notifier).addMember(group.id, selected);
     }
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
+  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController(text: group.name);
+    final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete group?'),
-        content: const Text(
-            'This permanently removes the group and all of its expenses.'),
+        title: const Text('Rename group'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Group name'),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
           ),
         ],
       ),
     );
-    if (confirmed ?? false) {
-      await ref.read(appControllerProvider.notifier).deleteGroup(groupId);
-      if (context.mounted) Navigator.of(context).pop();
+    controller.dispose();
+    if (name != null && name.isNotEmpty) {
+      await ref.read(appProvider.notifier).renameGroup(group.id, name);
     }
   }
 }
 
-/// A ledger entry can be an expense or a settlement; this unifies them for the
-/// chronological list.
+/// A ledger entry is an expense or a settlement; this unifies them for the list.
+class _LedgerEntry {
+  _LedgerEntry.expense(ExpenseViewDto e)
+      : expense = e,
+        settlement = null,
+        sortKey = e.dateMs;
+  // Settlements have no stored timestamp; they sort after dated expenses.
+  _LedgerEntry.settlement(SettlementViewDto s)
+      : expense = null,
+        settlement = s,
+        sortKey = -1;
+
+  final ExpenseViewDto? expense;
+  final SettlementViewDto? settlement;
+  final int sortKey;
+}
+
 class _ExpensesTab extends ConsumerWidget {
-  const _ExpensesTab({required this.groupId});
-  final String groupId;
+  const _ExpensesTab({required this.group});
+  final GroupDetailDto group;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
-    final group = state.groupById(groupId)!;
-    final expenses = state.expensesForGroup(groupId);
-    final settlements = state.settlementsForGroup(groupId);
-
     final entries = <_LedgerEntry>[
-      ...expenses.map(_LedgerEntry.expense),
-      ...settlements.map(_LedgerEntry.settlement),
-    ]..sort((a, b) => b.date.compareTo(a.date));
+      ...group.expenses.map(_LedgerEntry.expense),
+      ...group.settlements.map(_LedgerEntry.settlement),
+    ]..sort((a, b) => b.sortKey.compareTo(a.sortKey));
 
     if (entries.isEmpty) {
       return const EmptyState(
@@ -176,51 +197,24 @@ class _ExpensesTab extends ConsumerWidget {
       itemBuilder: (context, i) {
         final entry = entries[i];
         if (entry.expense != null) {
-          return _ExpenseTile(
-            expense: entry.expense!,
-            currencyCode: group.currencyCode,
-          );
+          return _ExpenseTile(group: group, expense: entry.expense!);
         }
-        return _SettlementTile(
-          settlement: entry.settlement!,
-          currencyCode: group.currencyCode,
-        );
+        return _SettlementTile(settlement: entry.settlement!);
       },
     );
   }
 }
 
-class _LedgerEntry {
-  _LedgerEntry.expense(Expense e)
-      : expense = e,
-        settlement = null,
-        date = e.date;
-  _LedgerEntry.settlement(Settlement s)
-      : expense = null,
-        settlement = s,
-        date = s.date;
-
-  final Expense? expense;
-  final Settlement? settlement;
-  final DateTime date;
-}
-
-class _ExpenseTile extends ConsumerWidget {
-  const _ExpenseTile({required this.expense, required this.currencyCode});
-  final Expense expense;
-  final String currencyCode;
+class _ExpenseTile extends StatelessWidget {
+  const _ExpenseTile({required this.group, required this.expense});
+  final GroupDetailDto group;
+  final ExpenseViewDto expense;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final me = state.currentUserId;
-    final myShare = expense.paidByUser(me) - expense.owedByUser(me);
-    final category = Categories.byId(expense.categoryId);
-
-    final payerNames = expense.paidBy.keys
-        .map((id) => state.displayName(id))
-        .join(', ');
+    final category = Categories.byId(expense.category);
+    final payerNames = expense.paidBy.map((p) => p.name).join(', ');
 
     return ListTile(
       leading: CircleAvatar(
@@ -230,22 +224,17 @@ class _ExpenseTile extends ConsumerWidget {
       ),
       title: Text(expense.description,
           style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(
-        '$payerNames paid ${Money.format(expense.totalCents, code: currencyCode)}',
-      ),
+      subtitle: Text('$payerNames paid ${Money.format(expense.totalCents)}'),
       trailing: BalanceLabel(
-        netCents: myShare,
-        currencyCode: currencyCode,
+        netCents: expense.myNetCents,
+        currencyCode: 'USD',
         youArePositive: 'you lent',
         youAreNegative: 'you borrowed',
         settledText: 'not involved',
       ),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => AddExpenseScreen(
-            groupId: expense.groupId,
-            existing: expense,
-          ),
+          builder: (_) => AddExpenseScreen(group: group, existing: expense),
           fullscreenDialog: true,
         ),
       ),
@@ -254,13 +243,11 @@ class _ExpenseTile extends ConsumerWidget {
 }
 
 class _SettlementTile extends ConsumerWidget {
-  const _SettlementTile({required this.settlement, required this.currencyCode});
-  final Settlement settlement;
-  final String currencyCode;
+  const _SettlementTile({required this.settlement});
+  final SettlementViewDto settlement;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
     final theme = Theme.of(context);
     return ListTile(
       leading: CircleAvatar(
@@ -268,78 +255,63 @@ class _SettlementTile extends ConsumerWidget {
         child: Icon(Icons.swap_horiz,
             color: theme.colorScheme.onTertiaryContainer, size: 20),
       ),
-      title: Text(
-        '${state.displayName(settlement.fromUserId)} paid '
-        '${state.displayName(settlement.toUserId)}',
-      ),
-      subtitle: const Text('Payment'),
+      title: Text('${settlement.fromName} paid ${settlement.toName}'),
+      subtitle: const Text('Payment · long-press to remove'),
       trailing: Text(
-        Money.format(settlement.amountCents, code: currencyCode),
+        Money.format(settlement.amountCents),
         style: const TextStyle(
             color: AppTheme.positive, fontWeight: FontWeight.bold),
       ),
-      onLongPress: () => ref
-          .read(appControllerProvider.notifier)
-          .deleteSettlement(settlement.id),
+      onLongPress: () =>
+          ref.read(appProvider.notifier).deleteSettlement(settlement.id),
     );
   }
 }
 
-class _BalancesTab extends ConsumerWidget {
-  const _BalancesTab({required this.groupId});
-  final String groupId;
+class _BalancesTab extends StatelessWidget {
+  const _BalancesTab({required this.group});
+  final GroupDetailDto group;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appControllerProvider);
-    final group = state.groupById(groupId)!;
-    final net = ref.watch(groupNetBalancesProvider(groupId));
-    final suggestions = ref.watch(groupSettleUpProvider(groupId));
-
+  Widget build(BuildContext context) {
+    final settled = group.settleUp.isEmpty;
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton.icon(
-            onPressed: suggestions.isEmpty
+            onPressed: settled
                 ? null
                 : () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => SettleUpScreen(groupId: groupId),
+                        builder: (_) => SettleUpScreen(group: group),
                       ),
                     ),
             icon: const Icon(Icons.handshake),
-            label: Text(suggestions.isEmpty
-                ? 'Everyone is settled up'
-                : 'Settle up'),
+            label: Text(settled ? 'Everyone is settled up' : 'Settle up'),
           ),
         ),
-        if (suggestions.isNotEmpty) ...[
+        if (!settled) ...[
           const _SectionHeader('Suggested payments'),
-          for (final edge in suggestions)
+          for (final t in group.settleUp)
             ListTile(
               leading: const Icon(Icons.arrow_forward),
-              title: Text(
-                '${state.displayName(edge.fromUserId)} → '
-                '${state.displayName(edge.toUserId)}',
-              ),
+              title: Text('${_name(group, t.from)} → ${_name(group, t.to)}'),
               trailing: Text(
-                Money.format(edge.amountCents, code: group.currencyCode),
+                Money.format(t.amountCents),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
         ],
         const _SectionHeader('Member balances'),
-        for (final memberId in group.memberIds)
+        for (final m in group.members)
           ListTile(
-            leading: state.userById(memberId) == null
-                ? const CircleAvatar(child: Icon(Icons.person))
-                : UserAvatar(user: state.userById(memberId)!),
-            title: Text(state.displayName(memberId)),
+            leading: UserAvatar(name: m.name, id: m.userId),
+            title: Text(m.name),
             trailing: BalanceLabel(
-              netCents: net[memberId] ?? 0,
-              currencyCode: group.currencyCode,
+              netCents: m.netCents,
+              currencyCode: 'USD',
               youArePositive: 'gets back',
               youAreNegative: 'owes',
             ),
@@ -347,6 +319,13 @@ class _BalancesTab extends ConsumerWidget {
       ],
     );
   }
+
+  String _name(GroupDetailDto group, String userId) => group.members
+      .firstWhere(
+        (m) => m.userId == userId,
+        orElse: () => MemberBalanceDto(userId: userId, name: userId, netCents: 0),
+      )
+      .name;
 }
 
 class _SectionHeader extends StatelessWidget {

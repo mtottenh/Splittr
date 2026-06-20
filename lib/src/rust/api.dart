@@ -45,6 +45,8 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<void> lockExpense({required String expenseId});
 
+  Future<String?> myName();
+
   Future<String> myUserId();
 
   /// Open (or create) the engine over a redb database at `db_path`, using the

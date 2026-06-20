@@ -38,9 +38,9 @@ class _RootShellState extends ConsumerState<RootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final bootstrap = ref.watch(bootstrapProvider);
+    final app = ref.watch(appProvider);
 
-    return bootstrap.when(
+    return app.when(
       loading: () => const _Splash(),
       error: (error, _) => _ErrorScreen(error: error),
       data: (_) => _buildShell(context),
@@ -113,10 +113,44 @@ class _RootShellState extends ConsumerState<RootShell> {
     );
   }
 
-  Future<void> _openAddExpense(BuildContext context) {
-    return Navigator.of(context).push(
+  /// Every expense belongs to a group, so first resolve which group to add to,
+  /// then load its detail (members) before opening the editor.
+  Future<void> _openAddExpense(BuildContext context) async {
+    final groups = ref.read(appProvider).requireValue.groups;
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create a group first.')),
+      );
+      return;
+    }
+
+    String groupId = groups.first.id;
+    if (groups.length > 1) {
+      final picked = await showModalBottomSheet<String>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final g in groups)
+                ListTile(
+                  leading: const Icon(Icons.groups),
+                  title: Text(g.name),
+                  onTap: () => Navigator.of(context).pop(g.id),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (picked == null) return;
+      groupId = picked;
+    }
+
+    final detail = await ref.read(groupDetailProvider(groupId).future);
+    if (detail == null || !context.mounted) return;
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const AddExpenseScreen(),
+        builder: (_) => AddExpenseScreen(group: detail),
         fullscreenDialog: true,
       ),
     );
