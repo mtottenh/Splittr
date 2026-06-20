@@ -138,7 +138,11 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   on member/device removal. Relays see only ciphertext.
 - **At rest** (#22): **done** — the op-log is encrypted with XChaCha20-Poly1305
   (`splittr-crypto::seal`/`open`) under a platform-held key (`flutter_secure_storage`
-  keystore, file fallback). Biometric/PIN app lock (`local_auth`) is still pending.
+  keystore, file fallback), plus a biometric/PIN **app lock** (`local_auth` +
+  salted-SHA-256 PIN) that re-locks on background.
+- **Identity** (#6, ADR-0004): Ed25519 signing key (= user id) + X25519 agreement
+  key from one seed; the agreement public key is published as a converging op so
+  E2E (#14) can resolve peers' keys from the projection.
 
 ## 8. Repository layout (target)
 
@@ -211,6 +215,6 @@ degraded web client is acceptable.
 ## 13. Traceability
 
 - **Decisions:** ADR-0001 (core data model), ADR-0002 (transport: iroh),
-  ADR-0003 (language: Rust core). See `docs/adr/`.
+  ADR-0003 (language: Rust core), ADR-0004 (identity & key hierarchy). See `docs/adr/`.
 - **Work:** Epic #18 holds the phased roadmap; the component-map table (§3) links
   each crate to its issues.
