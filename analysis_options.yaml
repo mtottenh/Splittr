@@ -2,6 +2,9 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  # flutter_rust_bridge-generated bindings are not subject to project lints.
+  exclude:
+    - lib/src/rust/**
   language:
     strict-casts: true
     strict-inference: true
