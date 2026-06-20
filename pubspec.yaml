@@ -1,0 +1,38 @@
+name: splittr
+description: "Splittr — a cross-platform expense sharing app (Splitwise clone) for iOS, Android, Windows, Linux, macOS and the web."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management — Riverpod gives compile-safe, testable, decoupled
+  # providers without BuildContext gymnastics.
+  flutter_riverpod: ^2.6.1
+
+  # Cross-platform path to the per-app documents directory
+  # (iOS / Android / Windows / Linux / macOS / web all supported).
+  path_provider: ^2.1.5
+
+  # Stable, collision-resistant identifiers for entities.
+  uuid: ^4.5.1
+
+  # Locale-aware currency and date formatting.
+  intl: ^0.20.2
+
+  # iOS-style icons.
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Recommended lint set, enabled via analysis_options.yaml.
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
