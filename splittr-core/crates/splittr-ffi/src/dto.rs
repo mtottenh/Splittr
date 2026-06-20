@@ -48,14 +48,35 @@ pub struct MemberBalanceDto {
     pub net_cents: i64,
 }
 
+/// A `(user, name, amount)` triple — one payer or one split share.
+pub struct MemberAmountDto {
+    pub user_id: String,
+    pub name: String,
+    pub cents: i64,
+}
+
 pub struct ExpenseViewDto {
     pub id: String,
+    pub group_id: String,
+    pub group_name: String,
     pub description: String,
     pub total_cents: i64,
     pub category: String,
     pub date_ms: i64,
+    pub notes: Option<String>,
     pub my_net_cents: i64,
     pub locked: bool,
+    pub paid_by: Vec<MemberAmountDto>,
+    pub splits: Vec<MemberAmountDto>,
+}
+
+pub struct SettlementViewDto {
+    pub id: String,
+    pub from: String,
+    pub from_name: String,
+    pub to: String,
+    pub to_name: String,
+    pub amount_cents: i64,
 }
 
 pub struct TransferDto {
@@ -69,5 +90,28 @@ pub struct GroupDetailDto {
     pub name: String,
     pub members: Vec<MemberBalanceDto>,
     pub expenses: Vec<ExpenseViewDto>,
+    pub settlements: Vec<SettlementViewDto>,
     pub settle_up: Vec<TransferDto>,
+}
+
+/// A friend with the running balance to the current user (positive = owes you).
+pub struct FriendBalanceDto {
+    pub user_id: String,
+    pub name: String,
+    pub net_cents: i64,
+}
+
+pub struct FriendDetailDto {
+    pub user_id: String,
+    pub name: String,
+    pub net_cents: i64,
+    pub shared: Vec<ExpenseViewDto>,
+}
+
+/// One entry in the activity feed. `kind` is a coarse tag for icon selection:
+/// `group`, `expense`, `edit`, `delete`, `settlement`, `person`.
+pub struct ActivityEntryDto {
+    pub kind: String,
+    pub summary: String,
+    pub wall_ms: i64,
 }

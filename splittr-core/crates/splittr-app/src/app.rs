@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::clock::HlcGenerator;
 use crate::error::{AppError, Result};
 use crate::identity::Identity;
-use crate::query::{self, GroupDetail, GroupSummary};
+use crate::query::{self, ActivityEntry, FriendBalance, FriendDetail, GroupDetail, GroupSummary};
 
 /// Drives the engine for the local user. All writes go through [`App::commit`],
 /// which stamps an HLC, signs the op with the local identity, and appends it.
@@ -202,6 +202,21 @@ impl<S: OpStore> App<S> {
 
     pub fn group_detail(&self, group: &GroupId) -> Option<GroupDetail> {
         query::group_detail(&self.repo.projection(), self.me(), group)
+    }
+
+    /// Everyone the local user knows, with the running balance to each.
+    pub fn friends(&self) -> Vec<FriendBalance> {
+        query::friends(&self.repo.projection(), self.me())
+    }
+
+    pub fn friend_detail(&self, friend: &UserId) -> Option<FriendDetail> {
+        query::friend_detail(&self.repo.projection(), self.me(), friend)
+    }
+
+    /// A reverse-chronological feed derived from the signed op-log.
+    pub fn activity(&self) -> Vec<ActivityEntry> {
+        let ops = self.repo.store().ops().unwrap_or_default();
+        query::activity(&ops, &self.repo.projection(), self.me())
     }
 
     // --- internals ---------------------------------------------------------

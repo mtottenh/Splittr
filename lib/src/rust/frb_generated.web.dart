@@ -50,10 +50,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  ActivityEntryDto dco_decode_activity_entry_dto(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
   ExpenseInput dco_decode_box_autoadd_expense_input(dynamic raw);
+
+  @protected
+  FriendDetailDto dco_decode_box_autoadd_friend_detail_dto(dynamic raw);
 
   @protected
   GroupDetailDto dco_decode_box_autoadd_group_detail_dto(dynamic raw);
@@ -63,6 +69,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ExpenseViewDto dco_decode_expense_view_dto(dynamic raw);
+
+  @protected
+  FriendBalanceDto dco_decode_friend_balance_dto(dynamic raw);
+
+  @protected
+  FriendDetailDto dco_decode_friend_detail_dto(dynamic raw);
 
   @protected
   GroupDetailDto dco_decode_group_detail_dto(dynamic raw);
@@ -77,10 +89,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<ActivityEntryDto> dco_decode_list_activity_entry_dto(dynamic raw);
+
+  @protected
   List<ExpenseViewDto> dco_decode_list_expense_view_dto(dynamic raw);
 
   @protected
+  List<FriendBalanceDto> dco_decode_list_friend_balance_dto(dynamic raw);
+
+  @protected
   List<GroupSummaryDto> dco_decode_list_group_summary_dto(dynamic raw);
+
+  @protected
+  List<MemberAmountDto> dco_decode_list_member_amount_dto(dynamic raw);
 
   @protected
   List<MemberBalanceDto> dco_decode_list_member_balance_dto(dynamic raw);
@@ -95,10 +116,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<SettlementViewDto> dco_decode_list_settlement_view_dto(dynamic raw);
+
+  @protected
   List<TransferDto> dco_decode_list_transfer_dto(dynamic raw);
 
   @protected
   List<Weight> dco_decode_list_weight(dynamic raw);
+
+  @protected
+  MemberAmountDto dco_decode_member_amount_dto(dynamic raw);
 
   @protected
   MemberBalanceDto dco_decode_member_balance_dto(dynamic raw);
@@ -107,10 +134,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  FriendDetailDto? dco_decode_opt_box_autoadd_friend_detail_dto(dynamic raw);
+
+  @protected
   GroupDetailDto? dco_decode_opt_box_autoadd_group_detail_dto(dynamic raw);
 
   @protected
   Payer dco_decode_payer(dynamic raw);
+
+  @protected
+  SettlementViewDto dco_decode_settlement_view_dto(dynamic raw);
 
   @protected
   SplitPlanDto dco_decode_split_plan_dto(dynamic raw);
@@ -161,10 +194,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  ActivityEntryDto sse_decode_activity_entry_dto(SseDeserializer deserializer);
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
   ExpenseInput sse_decode_box_autoadd_expense_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FriendDetailDto sse_decode_box_autoadd_friend_detail_dto(
     SseDeserializer deserializer,
   );
 
@@ -180,6 +221,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ExpenseViewDto sse_decode_expense_view_dto(SseDeserializer deserializer);
 
   @protected
+  FriendBalanceDto sse_decode_friend_balance_dto(SseDeserializer deserializer);
+
+  @protected
+  FriendDetailDto sse_decode_friend_detail_dto(SseDeserializer deserializer);
+
+  @protected
   GroupDetailDto sse_decode_group_detail_dto(SseDeserializer deserializer);
 
   @protected
@@ -192,12 +239,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<ActivityEntryDto> sse_decode_list_activity_entry_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ExpenseViewDto> sse_decode_list_expense_view_dto(
     SseDeserializer deserializer,
   );
 
   @protected
+  List<FriendBalanceDto> sse_decode_list_friend_balance_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<GroupSummaryDto> sse_decode_list_group_summary_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MemberAmountDto> sse_decode_list_member_amount_dto(
     SseDeserializer deserializer,
   );
 
@@ -216,10 +278,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<SettlementViewDto> sse_decode_list_settlement_view_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TransferDto> sse_decode_list_transfer_dto(SseDeserializer deserializer);
 
   @protected
   List<Weight> sse_decode_list_weight(SseDeserializer deserializer);
+
+  @protected
+  MemberAmountDto sse_decode_member_amount_dto(SseDeserializer deserializer);
 
   @protected
   MemberBalanceDto sse_decode_member_balance_dto(SseDeserializer deserializer);
@@ -228,12 +298,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  FriendDetailDto? sse_decode_opt_box_autoadd_friend_detail_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   GroupDetailDto? sse_decode_opt_box_autoadd_group_detail_dto(
     SseDeserializer deserializer,
   );
 
   @protected
   Payer sse_decode_payer(SseDeserializer deserializer);
+
+  @protected
+  SettlementViewDto sse_decode_settlement_view_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SplitPlanDto sse_decode_split_plan_dto(SseDeserializer deserializer);
@@ -293,11 +373,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_activity_entry_dto(
+    ActivityEntryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_expense_input(
     ExpenseInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_friend_detail_dto(
+    FriendDetailDto self,
     SseSerializer serializer,
   );
 
@@ -313,6 +405,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_expense_view_dto(
     ExpenseViewDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_friend_balance_dto(
+    FriendBalanceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_friend_detail_dto(
+    FriendDetailDto self,
     SseSerializer serializer,
   );
 
@@ -335,14 +439,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_activity_entry_dto(
+    List<ActivityEntryDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_expense_view_dto(
     List<ExpenseViewDto> self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_list_friend_balance_dto(
+    List<FriendBalanceDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_group_summary_dto(
     List<GroupSummaryDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_member_amount_dto(
+    List<MemberAmountDto> self,
     SseSerializer serializer,
   );
 
@@ -365,6 +487,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_settlement_view_dto(
+    List<SettlementViewDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_transfer_dto(
     List<TransferDto> self,
     SseSerializer serializer,
@@ -372,6 +500,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_weight(List<Weight> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_member_amount_dto(
+    MemberAmountDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_member_balance_dto(
@@ -383,6 +517,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_friend_detail_dto(
+    FriendDetailDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_group_detail_dto(
     GroupDetailDto? self,
     SseSerializer serializer,
@@ -390,6 +530,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_payer(Payer self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_settlement_view_dto(
+    SettlementViewDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_split_plan_dto(SplitPlanDto self, SseSerializer serializer);

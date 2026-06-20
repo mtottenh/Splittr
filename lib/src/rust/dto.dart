@@ -8,6 +8,32 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
+/// One entry in the activity feed. `kind` is a coarse tag for icon selection:
+/// `group`, `expense`, `edit`, `delete`, `settlement`, `person`.
+class ActivityEntryDto {
+  final String kind;
+  final String summary;
+  final PlatformInt64 wallMs;
+
+  const ActivityEntryDto({
+    required this.kind,
+    required this.summary,
+    required this.wallMs,
+  });
+
+  @override
+  int get hashCode => kind.hashCode ^ summary.hashCode ^ wallMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActivityEntryDto &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          summary == other.summary &&
+          wallMs == other.wallMs;
+}
+
 /// Input for adding or editing an expense.
 class ExpenseInput {
   final String groupId;
@@ -58,32 +84,47 @@ class ExpenseInput {
 
 class ExpenseViewDto {
   final String id;
+  final String groupId;
+  final String groupName;
   final String description;
   final PlatformInt64 totalCents;
   final String category;
   final PlatformInt64 dateMs;
+  final String? notes;
   final PlatformInt64 myNetCents;
   final bool locked;
+  final List<MemberAmountDto> paidBy;
+  final List<MemberAmountDto> splits;
 
   const ExpenseViewDto({
     required this.id,
+    required this.groupId,
+    required this.groupName,
     required this.description,
     required this.totalCents,
     required this.category,
     required this.dateMs,
+    this.notes,
     required this.myNetCents,
     required this.locked,
+    required this.paidBy,
+    required this.splits,
   });
 
   @override
   int get hashCode =>
       id.hashCode ^
+      groupId.hashCode ^
+      groupName.hashCode ^
       description.hashCode ^
       totalCents.hashCode ^
       category.hashCode ^
       dateMs.hashCode ^
+      notes.hashCode ^
       myNetCents.hashCode ^
-      locked.hashCode;
+      locked.hashCode ^
+      paidBy.hashCode ^
+      splits.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -91,12 +132,70 @@ class ExpenseViewDto {
       other is ExpenseViewDto &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          groupId == other.groupId &&
+          groupName == other.groupName &&
           description == other.description &&
           totalCents == other.totalCents &&
           category == other.category &&
           dateMs == other.dateMs &&
+          notes == other.notes &&
           myNetCents == other.myNetCents &&
-          locked == other.locked;
+          locked == other.locked &&
+          paidBy == other.paidBy &&
+          splits == other.splits;
+}
+
+/// A friend with the running balance to the current user (positive = owes you).
+class FriendBalanceDto {
+  final String userId;
+  final String name;
+  final PlatformInt64 netCents;
+
+  const FriendBalanceDto({
+    required this.userId,
+    required this.name,
+    required this.netCents,
+  });
+
+  @override
+  int get hashCode => userId.hashCode ^ name.hashCode ^ netCents.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FriendBalanceDto &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          name == other.name &&
+          netCents == other.netCents;
+}
+
+class FriendDetailDto {
+  final String userId;
+  final String name;
+  final PlatformInt64 netCents;
+  final List<ExpenseViewDto> shared;
+
+  const FriendDetailDto({
+    required this.userId,
+    required this.name,
+    required this.netCents,
+    required this.shared,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^ name.hashCode ^ netCents.hashCode ^ shared.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FriendDetailDto &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          name == other.name &&
+          netCents == other.netCents &&
+          shared == other.shared;
 }
 
 class GroupDetailDto {
@@ -104,6 +203,7 @@ class GroupDetailDto {
   final String name;
   final List<MemberBalanceDto> members;
   final List<ExpenseViewDto> expenses;
+  final List<SettlementViewDto> settlements;
   final List<TransferDto> settleUp;
 
   const GroupDetailDto({
@@ -111,6 +211,7 @@ class GroupDetailDto {
     required this.name,
     required this.members,
     required this.expenses,
+    required this.settlements,
     required this.settleUp,
   });
 
@@ -120,6 +221,7 @@ class GroupDetailDto {
       name.hashCode ^
       members.hashCode ^
       expenses.hashCode ^
+      settlements.hashCode ^
       settleUp.hashCode;
 
   @override
@@ -131,6 +233,7 @@ class GroupDetailDto {
           name == other.name &&
           members == other.members &&
           expenses == other.expenses &&
+          settlements == other.settlements &&
           settleUp == other.settleUp;
 }
 
@@ -160,6 +263,31 @@ class GroupSummaryDto {
           name == other.name &&
           memberCount == other.memberCount &&
           myNetCents == other.myNetCents;
+}
+
+/// A `(user, name, amount)` triple — one payer or one split share.
+class MemberAmountDto {
+  final String userId;
+  final String name;
+  final PlatformInt64 cents;
+
+  const MemberAmountDto({
+    required this.userId,
+    required this.name,
+    required this.cents,
+  });
+
+  @override
+  int get hashCode => userId.hashCode ^ name.hashCode ^ cents.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MemberAmountDto &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          name == other.name &&
+          cents == other.cents;
 }
 
 class MemberBalanceDto {
@@ -203,6 +331,45 @@ class Payer {
           runtimeType == other.runtimeType &&
           userId == other.userId &&
           cents == other.cents;
+}
+
+class SettlementViewDto {
+  final String id;
+  final String from;
+  final String fromName;
+  final String to;
+  final String toName;
+  final PlatformInt64 amountCents;
+
+  const SettlementViewDto({
+    required this.id,
+    required this.from,
+    required this.fromName,
+    required this.to,
+    required this.toName,
+    required this.amountCents,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      from.hashCode ^
+      fromName.hashCode ^
+      to.hashCode ^
+      toName.hashCode ^
+      amountCents.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SettlementViewDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          from == other.from &&
+          fromName == other.fromName &&
+          to == other.to &&
+          toName == other.toName &&
+          amountCents == other.amountCents;
 }
 
 @freezed

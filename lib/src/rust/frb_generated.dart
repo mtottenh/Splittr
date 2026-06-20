@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 686416312;
+  int get rustContentHash => -889269622;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -77,6 +77,8 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<List<ActivityEntryDto>> crateApiEngineActivity({required Engine that});
+
   Future<String> crateApiEngineAddExpense({
     required Engine that,
     required ExpenseInput input,
@@ -114,6 +116,13 @@ abstract class RustLibApi extends BaseApi {
     required String expenseId,
     required ExpenseInput input,
   });
+
+  Future<FriendDetailDto?> crateApiEngineFriendDetail({
+    required Engine that,
+    required String userId,
+  });
+
+  Future<List<FriendBalanceDto>> crateApiEngineFriends({required Engine that});
 
   Future<GroupDetailDto?> crateApiEngineGroupDetail({
     required Engine that,
@@ -181,6 +190,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<List<ActivityEntryDto>> crateApiEngineActivity({
+    required Engine that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_activity_entry_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineActivityConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineActivityConstMeta =>
+      const TaskConstMeta(debugName: "Engine_activity", argNames: ["that"]);
+
+  @override
   Future<String> crateApiEngineAddExpense({
     required Engine that,
     required ExpenseInput input,
@@ -197,7 +239,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 2,
             port: port_,
           );
         },
@@ -213,8 +255,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineAddExpenseConstMeta => const TaskConstMeta(
-    debugName: 'Engine_add_expense',
-    argNames: ['that', 'input'],
+    debugName: "Engine_add_expense",
+    argNames: ["that", "input"],
   );
 
   @override
@@ -236,7 +278,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 3,
             port: port_,
           );
         },
@@ -252,8 +294,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineAddMemberConstMeta => const TaskConstMeta(
-    debugName: 'Engine_add_member',
-    argNames: ['that', 'groupId', 'userId'],
+    debugName: "Engine_add_member",
+    argNames: ["that", "groupId", "userId"],
   );
 
   @override
@@ -273,7 +315,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -289,8 +331,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineAddPersonConstMeta => const TaskConstMeta(
-    debugName: 'Engine_add_person',
-    argNames: ['that', 'name'],
+    debugName: "Engine_add_person",
+    argNames: ["that", "name"],
   );
 
   @override
@@ -312,7 +354,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -328,8 +370,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineCreateGroupConstMeta => const TaskConstMeta(
-    debugName: 'Engine_create_group',
-    argNames: ['that', 'name', 'memberIds'],
+    debugName: "Engine_create_group",
+    argNames: ["that", "name", "memberIds"],
   );
 
   @override
@@ -349,7 +391,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -366,8 +408,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineDeleteExpenseConstMeta =>
       const TaskConstMeta(
-        debugName: 'Engine_delete_expense',
-        argNames: ['that', 'expenseId'],
+        debugName: "Engine_delete_expense",
+        argNames: ["that", "expenseId"],
       );
 
   @override
@@ -387,7 +429,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -404,8 +446,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineDeleteSettlementConstMeta =>
       const TaskConstMeta(
-        debugName: 'Engine_delete_settlement',
-        argNames: ['that', 'settlementId'],
+        debugName: "Engine_delete_settlement",
+        argNames: ["that", "settlementId"],
       );
 
   @override
@@ -427,7 +469,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -443,9 +485,77 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineEditExpenseConstMeta => const TaskConstMeta(
-    debugName: 'Engine_edit_expense',
-    argNames: ['that', 'expenseId', 'input'],
+    debugName: "Engine_edit_expense",
+    argNames: ["that", "expenseId", "input"],
   );
+
+  @override
+  Future<FriendDetailDto?> crateApiEngineFriendDetail({
+    required Engine that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_friend_detail_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineFriendDetailConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineFriendDetailConstMeta => const TaskConstMeta(
+    debugName: "Engine_friend_detail",
+    argNames: ["that", "userId"],
+  );
+
+  @override
+  Future<List<FriendBalanceDto>> crateApiEngineFriends({required Engine that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_friend_balance_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineFriendsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineFriendsConstMeta =>
+      const TaskConstMeta(debugName: "Engine_friends", argNames: ["that"]);
 
   @override
   Future<GroupDetailDto?> crateApiEngineGroupDetail({
@@ -464,7 +574,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 11,
             port: port_,
           );
         },
@@ -480,8 +590,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineGroupDetailConstMeta => const TaskConstMeta(
-    debugName: 'Engine_group_detail',
-    argNames: ['that', 'groupId'],
+    debugName: "Engine_group_detail",
+    argNames: ["that", "groupId"],
   );
 
   @override
@@ -497,7 +607,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 12,
             port: port_,
           );
         },
@@ -513,7 +623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineGroupsConstMeta =>
-      const TaskConstMeta(debugName: 'Engine_groups', argNames: ['that']);
+      const TaskConstMeta(debugName: "Engine_groups", argNames: ["that"]);
 
   @override
   Future<void> crateApiEngineLockExpense({
@@ -532,7 +642,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 13,
             port: port_,
           );
         },
@@ -548,8 +658,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineLockExpenseConstMeta => const TaskConstMeta(
-    debugName: 'Engine_lock_expense',
-    argNames: ['that', 'expenseId'],
+    debugName: "Engine_lock_expense",
+    argNames: ["that", "expenseId"],
   );
 
   @override
@@ -565,7 +675,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 14,
             port: port_,
           );
         },
@@ -581,7 +691,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineMyUserIdConstMeta =>
-      const TaskConstMeta(debugName: 'Engine_my_user_id', argNames: ['that']);
+      const TaskConstMeta(debugName: "Engine_my_user_id", argNames: ["that"]);
 
   @override
   Future<Engine> crateApiEngineOpen({
@@ -599,7 +709,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 15,
             port: port_,
           );
         },
@@ -616,8 +726,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineOpenConstMeta => const TaskConstMeta(
-    debugName: 'Engine_open',
-    argNames: ['dbPath', 'identitySeed', 'site'],
+    debugName: "Engine_open",
+    argNames: ["dbPath", "identitySeed", "site"],
   );
 
   @override
@@ -643,7 +753,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 16,
             port: port_,
           );
         },
@@ -660,8 +770,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineRecordSettlementConstMeta =>
       const TaskConstMeta(
-        debugName: 'Engine_record_settlement',
-        argNames: ['that', 'groupId', 'from', 'to', 'amountCents'],
+        debugName: "Engine_record_settlement",
+        argNames: ["that", "groupId", "from", "to", "amountCents"],
       );
 
   @override
@@ -683,7 +793,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 17,
             port: port_,
           );
         },
@@ -699,8 +809,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineRemoveMemberConstMeta => const TaskConstMeta(
-    debugName: 'Engine_remove_member',
-    argNames: ['that', 'groupId', 'userId'],
+    debugName: "Engine_remove_member",
+    argNames: ["that", "groupId", "userId"],
   );
 
   @override
@@ -722,7 +832,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 18,
             port: port_,
           );
         },
@@ -738,8 +848,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineRenameGroupConstMeta => const TaskConstMeta(
-    debugName: 'Engine_rename_group',
-    argNames: ['that', 'groupId', 'name'],
+    debugName: "Engine_rename_group",
+    argNames: ["that", "groupId", "name"],
   );
 
   @override
@@ -759,7 +869,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 19,
             port: port_,
           );
         },
@@ -775,8 +885,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiEngineSetMyNameConstMeta => const TaskConstMeta(
-    debugName: 'Engine_set_my_name',
-    argNames: ['that', 'name'],
+    debugName: "Engine_set_my_name",
+    argNames: ["that", "name"],
   );
 
   @override
@@ -796,7 +906,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 20,
             port: port_,
           );
         },
@@ -813,8 +923,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineUnlockExpenseConstMeta =>
       const TaskConstMeta(
-        debugName: 'Engine_unlock_expense',
-        argNames: ['that', 'expenseId'],
+        debugName: "Engine_unlock_expense",
+        argNames: ["that", "expenseId"],
       );
 
   RustArcIncrementStrongCountFnType
@@ -865,6 +975,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ActivityEntryDto dco_decode_activity_entry_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ActivityEntryDto(
+      kind: dco_decode_String(arr[0]),
+      summary: dco_decode_String(arr[1]),
+      wallMs: dco_decode_i_64(arr[2]),
+    );
+  }
+
+  @protected
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
@@ -874,6 +997,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ExpenseInput dco_decode_box_autoadd_expense_input(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_expense_input(raw);
+  }
+
+  @protected
+  FriendDetailDto dco_decode_box_autoadd_friend_detail_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_friend_detail_dto(raw);
   }
 
   @protected
@@ -904,16 +1033,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ExpenseViewDto dco_decode_expense_view_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return ExpenseViewDto(
       id: dco_decode_String(arr[0]),
-      description: dco_decode_String(arr[1]),
-      totalCents: dco_decode_i_64(arr[2]),
-      category: dco_decode_String(arr[3]),
-      dateMs: dco_decode_i_64(arr[4]),
-      myNetCents: dco_decode_i_64(arr[5]),
-      locked: dco_decode_bool(arr[6]),
+      groupId: dco_decode_String(arr[1]),
+      groupName: dco_decode_String(arr[2]),
+      description: dco_decode_String(arr[3]),
+      totalCents: dco_decode_i_64(arr[4]),
+      category: dco_decode_String(arr[5]),
+      dateMs: dco_decode_i_64(arr[6]),
+      notes: dco_decode_opt_String(arr[7]),
+      myNetCents: dco_decode_i_64(arr[8]),
+      locked: dco_decode_bool(arr[9]),
+      paidBy: dco_decode_list_member_amount_dto(arr[10]),
+      splits: dco_decode_list_member_amount_dto(arr[11]),
+    );
+  }
+
+  @protected
+  FriendBalanceDto dco_decode_friend_balance_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return FriendBalanceDto(
+      userId: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      netCents: dco_decode_i_64(arr[2]),
+    );
+  }
+
+  @protected
+  FriendDetailDto dco_decode_friend_detail_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return FriendDetailDto(
+      userId: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      netCents: dco_decode_i_64(arr[2]),
+      shared: dco_decode_list_expense_view_dto(arr[3]),
     );
   }
 
@@ -921,14 +1082,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDetailDto dco_decode_group_detail_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return GroupDetailDto(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       members: dco_decode_list_member_balance_dto(arr[2]),
       expenses: dco_decode_list_expense_view_dto(arr[3]),
-      settleUp: dco_decode_list_transfer_dto(arr[4]),
+      settlements: dco_decode_list_settlement_view_dto(arr[4]),
+      settleUp: dco_decode_list_transfer_dto(arr[5]),
     );
   }
 
@@ -959,15 +1121,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ActivityEntryDto> dco_decode_list_activity_entry_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_activity_entry_dto).toList();
+  }
+
+  @protected
   List<ExpenseViewDto> dco_decode_list_expense_view_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_expense_view_dto).toList();
   }
 
   @protected
+  List<FriendBalanceDto> dco_decode_list_friend_balance_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_friend_balance_dto).toList();
+  }
+
+  @protected
   List<GroupSummaryDto> dco_decode_list_group_summary_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_group_summary_dto).toList();
+  }
+
+  @protected
+  List<MemberAmountDto> dco_decode_list_member_amount_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_member_amount_dto).toList();
   }
 
   @protected
@@ -995,6 +1175,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<SettlementViewDto> dco_decode_list_settlement_view_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_settlement_view_dto).toList();
+  }
+
+  @protected
   List<TransferDto> dco_decode_list_transfer_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_transfer_dto).toList();
@@ -1004,6 +1190,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Weight> dco_decode_list_weight(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_weight).toList();
+  }
+
+  @protected
+  MemberAmountDto dco_decode_member_amount_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return MemberAmountDto(
+      userId: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      cents: dco_decode_i_64(arr[2]),
+    );
   }
 
   @protected
@@ -1026,6 +1225,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FriendDetailDto? dco_decode_opt_box_autoadd_friend_detail_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_friend_detail_dto(raw);
+  }
+
+  @protected
   GroupDetailDto? dco_decode_opt_box_autoadd_group_detail_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_group_detail_dto(raw);
@@ -1044,6 +1249,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SettlementViewDto dco_decode_settlement_view_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return SettlementViewDto(
+      id: dco_decode_String(arr[0]),
+      from: dco_decode_String(arr[1]),
+      fromName: dco_decode_String(arr[2]),
+      to: dco_decode_String(arr[3]),
+      toName: dco_decode_String(arr[4]),
+      amountCents: dco_decode_i_64(arr[5]),
+    );
+  }
+
+  @protected
   SplitPlanDto dco_decode_split_plan_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
@@ -1054,7 +1275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 2:
         return SplitPlanDto_Weighted(weights: dco_decode_list_weight(raw[1]));
       default:
-        throw Exception('unreachable');
+        throw Exception("unreachable");
     }
   }
 
@@ -1116,7 +1337,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final inner = sse_decode_String(deserializer);
+    var inner = sse_decode_String(deserializer);
     return AnyhowException(inner);
   }
 
@@ -1159,8 +1380,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final inner = sse_decode_list_prim_u_8_strict(deserializer);
+    var inner = sse_decode_list_prim_u_8_strict(deserializer);
     return utf8.decoder.convert(inner);
+  }
+
+  @protected
+  ActivityEntryDto sse_decode_activity_entry_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_String(deserializer);
+    var var_summary = sse_decode_String(deserializer);
+    var var_wallMs = sse_decode_i_64(deserializer);
+    return ActivityEntryDto(
+      kind: var_kind,
+      summary: var_summary,
+      wallMs: var_wallMs,
+    );
   }
 
   @protected
@@ -1178,6 +1412,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FriendDetailDto sse_decode_box_autoadd_friend_detail_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_friend_detail_dto(deserializer));
+  }
+
+  @protected
   GroupDetailDto sse_decode_box_autoadd_group_detail_dto(
     SseDeserializer deserializer,
   ) {
@@ -1188,14 +1430,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   ExpenseInput sse_decode_expense_input(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_groupId = sse_decode_String(deserializer);
-    final var_description = sse_decode_String(deserializer);
-    final var_paidBy = sse_decode_list_payer(deserializer);
-    final var_totalCents = sse_decode_i_64(deserializer);
-    final var_split = sse_decode_split_plan_dto(deserializer);
-    final var_category = sse_decode_String(deserializer);
-    final var_notes = sse_decode_opt_String(deserializer);
-    final var_dateMs = sse_decode_i_64(deserializer);
+    var var_groupId = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_paidBy = sse_decode_list_payer(deserializer);
+    var var_totalCents = sse_decode_i_64(deserializer);
+    var var_split = sse_decode_split_plan_dto(deserializer);
+    var var_category = sse_decode_String(deserializer);
+    var var_notes = sse_decode_opt_String(deserializer);
+    var var_dateMs = sse_decode_i_64(deserializer);
     return ExpenseInput(
       groupId: var_groupId,
       description: var_description,
@@ -1211,37 +1453,77 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   ExpenseViewDto sse_decode_expense_view_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_id = sse_decode_String(deserializer);
-    final var_description = sse_decode_String(deserializer);
-    final var_totalCents = sse_decode_i_64(deserializer);
-    final var_category = sse_decode_String(deserializer);
-    final var_dateMs = sse_decode_i_64(deserializer);
-    final var_myNetCents = sse_decode_i_64(deserializer);
-    final var_locked = sse_decode_bool(deserializer);
+    var var_id = sse_decode_String(deserializer);
+    var var_groupId = sse_decode_String(deserializer);
+    var var_groupName = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_totalCents = sse_decode_i_64(deserializer);
+    var var_category = sse_decode_String(deserializer);
+    var var_dateMs = sse_decode_i_64(deserializer);
+    var var_notes = sse_decode_opt_String(deserializer);
+    var var_myNetCents = sse_decode_i_64(deserializer);
+    var var_locked = sse_decode_bool(deserializer);
+    var var_paidBy = sse_decode_list_member_amount_dto(deserializer);
+    var var_splits = sse_decode_list_member_amount_dto(deserializer);
     return ExpenseViewDto(
       id: var_id,
+      groupId: var_groupId,
+      groupName: var_groupName,
       description: var_description,
       totalCents: var_totalCents,
       category: var_category,
       dateMs: var_dateMs,
+      notes: var_notes,
       myNetCents: var_myNetCents,
       locked: var_locked,
+      paidBy: var_paidBy,
+      splits: var_splits,
+    );
+  }
+
+  @protected
+  FriendBalanceDto sse_decode_friend_balance_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_userId = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_netCents = sse_decode_i_64(deserializer);
+    return FriendBalanceDto(
+      userId: var_userId,
+      name: var_name,
+      netCents: var_netCents,
+    );
+  }
+
+  @protected
+  FriendDetailDto sse_decode_friend_detail_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_userId = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_netCents = sse_decode_i_64(deserializer);
+    var var_shared = sse_decode_list_expense_view_dto(deserializer);
+    return FriendDetailDto(
+      userId: var_userId,
+      name: var_name,
+      netCents: var_netCents,
+      shared: var_shared,
     );
   }
 
   @protected
   GroupDetailDto sse_decode_group_detail_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_id = sse_decode_String(deserializer);
-    final var_name = sse_decode_String(deserializer);
-    final var_members = sse_decode_list_member_balance_dto(deserializer);
-    final var_expenses = sse_decode_list_expense_view_dto(deserializer);
-    final var_settleUp = sse_decode_list_transfer_dto(deserializer);
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_members = sse_decode_list_member_balance_dto(deserializer);
+    var var_expenses = sse_decode_list_expense_view_dto(deserializer);
+    var var_settlements = sse_decode_list_settlement_view_dto(deserializer);
+    var var_settleUp = sse_decode_list_transfer_dto(deserializer);
     return GroupDetailDto(
       id: var_id,
       name: var_name,
       members: var_members,
       expenses: var_expenses,
+      settlements: var_settlements,
       settleUp: var_settleUp,
     );
   }
@@ -1249,10 +1531,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   GroupSummaryDto sse_decode_group_summary_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_id = sse_decode_String(deserializer);
-    final var_name = sse_decode_String(deserializer);
-    final var_memberCount = sse_decode_u_32(deserializer);
-    final var_myNetCents = sse_decode_i_64(deserializer);
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_memberCount = sse_decode_u_32(deserializer);
+    var var_myNetCents = sse_decode_i_64(deserializer);
     return GroupSummaryDto(
       id: var_id,
       name: var_name,
@@ -1271,10 +1553,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<String> sse_decode_list_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <String>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ActivityEntryDto> sse_decode_list_activity_entry_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ActivityEntryDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_activity_entry_dto(deserializer));
     }
     return ans_;
   }
@@ -1285,10 +1581,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <ExpenseViewDto>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ExpenseViewDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_expense_view_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<FriendBalanceDto> sse_decode_list_friend_balance_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <FriendBalanceDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_friend_balance_dto(deserializer));
     }
     return ans_;
   }
@@ -1299,10 +1609,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <GroupSummaryDto>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <GroupSummaryDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_group_summary_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<MemberAmountDto> sse_decode_list_member_amount_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <MemberAmountDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_member_amount_dto(deserializer));
     }
     return ans_;
   }
@@ -1313,8 +1637,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <MemberBalanceDto>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <MemberBalanceDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_member_balance_dto(deserializer));
     }
@@ -1325,8 +1649,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Payer> sse_decode_list_payer(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <Payer>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Payer>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_payer(deserializer));
     }
@@ -1336,23 +1660,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final len_ = sse_decode_i_32(deserializer);
+    var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
   }
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final len_ = sse_decode_i_32(deserializer);
+    var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<SettlementViewDto> sse_decode_list_settlement_view_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SettlementViewDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_settlement_view_dto(deserializer));
+    }
+    return ans_;
   }
 
   @protected
   List<TransferDto> sse_decode_list_transfer_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <TransferDto>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TransferDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_transfer_dto(deserializer));
     }
@@ -1363,8 +1701,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Weight> sse_decode_list_weight(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final len_ = sse_decode_i_32(deserializer);
-    final ans_ = <Weight>[];
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Weight>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_weight(deserializer));
     }
@@ -1372,11 +1710,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MemberAmountDto sse_decode_member_amount_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_userId = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_cents = sse_decode_i_64(deserializer);
+    return MemberAmountDto(
+      userId: var_userId,
+      name: var_name,
+      cents: var_cents,
+    );
+  }
+
+  @protected
   MemberBalanceDto sse_decode_member_balance_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_userId = sse_decode_String(deserializer);
-    final var_name = sse_decode_String(deserializer);
-    final var_netCents = sse_decode_i_64(deserializer);
+    var var_userId = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_netCents = sse_decode_i_64(deserializer);
     return MemberBalanceDto(
       userId: var_userId,
       name: var_name,
@@ -1390,6 +1741,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  FriendDetailDto? sse_decode_opt_box_autoadd_friend_detail_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_friend_detail_dto(deserializer));
     } else {
       return null;
     }
@@ -1411,25 +1775,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   Payer sse_decode_payer(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_userId = sse_decode_String(deserializer);
-    final var_cents = sse_decode_i_64(deserializer);
+    var var_userId = sse_decode_String(deserializer);
+    var var_cents = sse_decode_i_64(deserializer);
     return Payer(userId: var_userId, cents: var_cents);
+  }
+
+  @protected
+  SettlementViewDto sse_decode_settlement_view_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_from = sse_decode_String(deserializer);
+    var var_fromName = sse_decode_String(deserializer);
+    var var_to = sse_decode_String(deserializer);
+    var var_toName = sse_decode_String(deserializer);
+    var var_amountCents = sse_decode_i_64(deserializer);
+    return SettlementViewDto(
+      id: var_id,
+      from: var_from,
+      fromName: var_fromName,
+      to: var_to,
+      toName: var_toName,
+      amountCents: var_amountCents,
+    );
   }
 
   @protected
   SplitPlanDto sse_decode_split_plan_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
-    final tag_ = sse_decode_i_32(deserializer);
+    var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        final var_participants = sse_decode_list_String(deserializer);
+        var var_participants = sse_decode_list_String(deserializer);
         return SplitPlanDto_Equal(participants: var_participants);
       case 1:
-        final var_amounts = sse_decode_list_payer(deserializer);
+        var var_amounts = sse_decode_list_payer(deserializer);
         return SplitPlanDto_Exact(amounts: var_amounts);
       case 2:
-        final var_weights = sse_decode_list_weight(deserializer);
+        var var_weights = sse_decode_list_weight(deserializer);
         return SplitPlanDto_Weighted(weights: var_weights);
       default:
         throw UnimplementedError('');
@@ -1439,9 +1824,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   TransferDto sse_decode_transfer_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_from = sse_decode_String(deserializer);
-    final var_to = sse_decode_String(deserializer);
-    final var_amountCents = sse_decode_i_64(deserializer);
+    var var_from = sse_decode_String(deserializer);
+    var var_to = sse_decode_String(deserializer);
+    var var_amountCents = sse_decode_i_64(deserializer);
     return TransferDto(
       from: var_from,
       to: var_to,
@@ -1481,8 +1866,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   Weight sse_decode_weight(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    final var_userId = sse_decode_String(deserializer);
-    final var_weight = sse_decode_u_64(deserializer);
+    var var_userId = sse_decode_String(deserializer);
+    var var_weight = sse_decode_u_64(deserializer);
     return Weight(userId: var_userId, weight: var_weight);
   }
 
@@ -1547,6 +1932,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_activity_entry_dto(
+    ActivityEntryDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.kind, serializer);
+    sse_encode_String(self.summary, serializer);
+    sse_encode_i_64(self.wallMs, serializer);
+  }
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
@@ -1559,6 +1955,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_expense_input(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_friend_detail_dto(
+    FriendDetailDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_friend_detail_dto(self, serializer);
   }
 
   @protected
@@ -1590,12 +1995,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
+    sse_encode_String(self.groupId, serializer);
+    sse_encode_String(self.groupName, serializer);
     sse_encode_String(self.description, serializer);
     sse_encode_i_64(self.totalCents, serializer);
     sse_encode_String(self.category, serializer);
     sse_encode_i_64(self.dateMs, serializer);
+    sse_encode_opt_String(self.notes, serializer);
     sse_encode_i_64(self.myNetCents, serializer);
     sse_encode_bool(self.locked, serializer);
+    sse_encode_list_member_amount_dto(self.paidBy, serializer);
+    sse_encode_list_member_amount_dto(self.splits, serializer);
+  }
+
+  @protected
+  void sse_encode_friend_balance_dto(
+    FriendBalanceDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.netCents, serializer);
+  }
+
+  @protected
+  void sse_encode_friend_detail_dto(
+    FriendDetailDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.netCents, serializer);
+    sse_encode_list_expense_view_dto(self.shared, serializer);
   }
 
   @protected
@@ -1608,6 +2041,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.name, serializer);
     sse_encode_list_member_balance_dto(self.members, serializer);
     sse_encode_list_expense_view_dto(self.expenses, serializer);
+    sse_encode_list_settlement_view_dto(self.settlements, serializer);
     sse_encode_list_transfer_dto(self.settleUp, serializer);
   }
 
@@ -1639,6 +2073,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_activity_entry_dto(
+    List<ActivityEntryDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_activity_entry_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_expense_view_dto(
     List<ExpenseViewDto> self,
     SseSerializer serializer,
@@ -1651,6 +2097,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_friend_balance_dto(
+    List<FriendBalanceDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_friend_balance_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_group_summary_dto(
     List<GroupSummaryDto> self,
     SseSerializer serializer,
@@ -1659,6 +2117,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_group_summary_dto(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_member_amount_dto(
+    List<MemberAmountDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_member_amount_dto(item, serializer);
     }
   }
 
@@ -1706,6 +2176,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_settlement_view_dto(
+    List<SettlementViewDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_settlement_view_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_transfer_dto(
     List<TransferDto> self,
     SseSerializer serializer,
@@ -1724,6 +2206,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     for (final item in self) {
       sse_encode_weight(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_member_amount_dto(
+    MemberAmountDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.cents, serializer);
   }
 
   @protected
@@ -1748,6 +2241,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_friend_detail_dto(
+    FriendDetailDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_friend_detail_dto(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_group_detail_dto(
     GroupDetailDto? self,
     SseSerializer serializer,
@@ -1765,6 +2271,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.userId, serializer);
     sse_encode_i_64(self.cents, serializer);
+  }
+
+  @protected
+  void sse_encode_settlement_view_dto(
+    SettlementViewDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.from, serializer);
+    sse_encode_String(self.fromName, serializer);
+    sse_encode_String(self.to, serializer);
+    sse_encode_String(self.toName, serializer);
+    sse_encode_i_64(self.amountCents, serializer);
   }
 
   @protected
@@ -1853,6 +2373,9 @@ class EngineImpl extends RustOpaque implements Engine {
         RustLib.instance.api.rust_arc_decrement_strong_count_EnginePtr,
   );
 
+  Future<List<ActivityEntryDto>> activity() =>
+      RustLib.instance.api.crateApiEngineActivity(that: this);
+
   Future<String> addExpense({required ExpenseInput input}) =>
       RustLib.instance.api.crateApiEngineAddExpense(that: this, input: input);
 
@@ -1895,6 +2418,14 @@ class EngineImpl extends RustOpaque implements Engine {
     expenseId: expenseId,
     input: input,
   );
+
+  Future<FriendDetailDto?> friendDetail({required String userId}) => RustLib
+      .instance
+      .api
+      .crateApiEngineFriendDetail(that: this, userId: userId);
+
+  Future<List<FriendBalanceDto>> friends() =>
+      RustLib.instance.api.crateApiEngineFriends(that: this);
 
   Future<GroupDetailDto?> groupDetail({required String groupId}) => RustLib
       .instance

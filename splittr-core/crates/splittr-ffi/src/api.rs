@@ -11,7 +11,10 @@ use anyhow::{anyhow, Result};
 use splittr_app::{App, Cents, GroupId, Identity, RedbOpStore, SettlementId, SiteId, UserId};
 
 use crate::convert::{to_paid_by, to_split_plan};
-use crate::dto::{ExpenseInput, GroupDetailDto, GroupSummaryDto};
+use crate::dto::{
+    ActivityEntryDto, ExpenseInput, FriendBalanceDto, FriendDetailDto, GroupDetailDto,
+    GroupSummaryDto,
+};
 
 pub struct Engine {
     inner: Mutex<App<RedbOpStore>>,
@@ -160,6 +163,20 @@ impl Engine {
         self.lock()
             .group_detail(&GroupId::new(group_id))
             .map(Into::into)
+    }
+
+    pub fn friends(&self) -> Vec<FriendBalanceDto> {
+        self.lock().friends().into_iter().map(Into::into).collect()
+    }
+
+    pub fn friend_detail(&self, user_id: String) -> Option<FriendDetailDto> {
+        self.lock()
+            .friend_detail(&UserId::new(user_id))
+            .map(Into::into)
+    }
+
+    pub fn activity(&self) -> Vec<ActivityEntryDto> {
+        self.lock().activity().into_iter().map(Into::into).collect()
     }
 
     // --- internals ---------------------------------------------------------

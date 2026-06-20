@@ -18,7 +18,10 @@ pub use app::App;
 pub use clock::HlcGenerator;
 pub use error::{AppError, Result};
 pub use identity::{user_id_for, Identity};
-pub use query::{ExpenseView, GroupDetail, GroupSummary, MemberBalance};
+pub use query::{
+    ActivityEntry, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
+    MemberAmount, MemberBalance, SettlementView,
+};
 
 // Convenience re-exports so callers/tests depend only on `splittr-app`.
 pub use splittr_crdt::{

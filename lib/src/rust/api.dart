@@ -11,6 +11,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>>
 abstract class Engine implements RustOpaqueInterface {
+  Future<List<ActivityEntryDto>> activity();
+
   Future<String> addExpense({required ExpenseInput input});
 
   Future<void> addMember({required String groupId, required String userId});
@@ -32,6 +34,10 @@ abstract class Engine implements RustOpaqueInterface {
     required String expenseId,
     required ExpenseInput input,
   });
+
+  Future<FriendDetailDto?> friendDetail({required String userId});
+
+  Future<List<FriendBalanceDto>> friends();
 
   Future<GroupDetailDto?> groupDetail({required String groupId});
 

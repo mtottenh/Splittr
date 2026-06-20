@@ -4,11 +4,13 @@
 use std::collections::BTreeMap;
 
 use splittr_app::{
-    Cents, ExpenseView, GroupDetail, GroupSummary, MemberBalance, SplitPlan, Transfer, UserId,
+    ActivityEntry, Cents, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
+    MemberAmount, MemberBalance, SettlementView, SplitPlan, Transfer, UserId,
 };
 
 use crate::dto::{
-    ExpenseViewDto, GroupDetailDto, GroupSummaryDto, MemberBalanceDto, Payer, SplitPlanDto,
+    ActivityEntryDto, ExpenseViewDto, FriendBalanceDto, FriendDetailDto, GroupDetailDto,
+    GroupSummaryDto, MemberAmountDto, MemberBalanceDto, Payer, SettlementViewDto, SplitPlanDto,
     TransferDto, Weight,
 };
 
@@ -57,16 +59,75 @@ impl From<MemberBalance> for MemberBalanceDto {
     }
 }
 
+impl From<MemberAmount> for MemberAmountDto {
+    fn from(m: MemberAmount) -> Self {
+        MemberAmountDto {
+            user_id: m.user.0,
+            name: m.name,
+            cents: m.cents.0,
+        }
+    }
+}
+
 impl From<ExpenseView> for ExpenseViewDto {
     fn from(e: ExpenseView) -> Self {
         ExpenseViewDto {
             id: e.id.0,
+            group_id: e.group.0,
+            group_name: e.group_name,
             description: e.description,
             total_cents: e.total.0,
             category: e.category,
             date_ms: e.date_ms,
+            notes: e.notes,
             my_net_cents: e.my_net.0,
             locked: e.locked,
+            paid_by: e.paid_by.into_iter().map(Into::into).collect(),
+            splits: e.splits.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<SettlementView> for SettlementViewDto {
+    fn from(s: SettlementView) -> Self {
+        SettlementViewDto {
+            id: s.id.0,
+            from: s.from.0,
+            from_name: s.from_name,
+            to: s.to.0,
+            to_name: s.to_name,
+            amount_cents: s.amount.0,
+        }
+    }
+}
+
+impl From<FriendBalance> for FriendBalanceDto {
+    fn from(f: FriendBalance) -> Self {
+        FriendBalanceDto {
+            user_id: f.user.0,
+            name: f.name,
+            net_cents: f.net.0,
+        }
+    }
+}
+
+impl From<FriendDetail> for FriendDetailDto {
+    fn from(f: FriendDetail) -> Self {
+        FriendDetailDto {
+            user_id: f.user.0,
+            name: f.name,
+            net_cents: f.net.0,
+            shared: f.shared.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ActivityEntry> for ActivityEntryDto {
+    fn from(a: ActivityEntry) -> Self {
+        ActivityEntryDto {
+            kind: a.kind,
+            summary: a.summary,
+            wall_ms: a.wall_ms,
         }
     }
 }
@@ -88,6 +149,7 @@ impl From<GroupDetail> for GroupDetailDto {
             name: d.name,
             members: d.members.into_iter().map(Into::into).collect(),
             expenses: d.expenses.into_iter().map(Into::into).collect(),
+            settlements: d.settlements.into_iter().map(Into::into).collect(),
             settle_up: d.settle_up.into_iter().map(Into::into).collect(),
         }
     }

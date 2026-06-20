@@ -23,7 +23,7 @@ mod materialize;
 mod op;
 mod projection;
 
-pub use balance::{net_balances, settle_up};
+pub use balance::{net_balances, pairwise_with, settle_up};
 pub use clock::{Hlc, SiteId};
 pub use materialize::{project, Materializer};
 pub use op::{Op, OpId, OpKind};
