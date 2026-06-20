@@ -54,8 +54,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   /// Per-participant inputs for exact / shares modes.
   final Map<String, TextEditingController> _splitInputs = {};
 
+  /// Per-payer amount inputs, used when [_multiplePayers] is on.
+  final Map<String, TextEditingController> _payerInputs = {};
+
   String _categoryId = 'general';
   String _payerId = '';
+  bool _multiplePayers = false;
   SplitMode _splitMode = SplitMode.equal;
   DateTime _date = DateTime.now();
   bool _draft = false;
@@ -106,6 +110,14 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _payerId = existing.paidBy.isEmpty ? '' : existing.paidBy.first.userId;
       _date = DateTime.fromMillisecondsSinceEpoch(existing.dateMs);
       _participants.addAll(existing.splits.map((s) => s.userId));
+      // Pre-fill multi-payer mode when the expense had more than one payer.
+      if (existing.paidBy.length > 1) {
+        _multiplePayers = true;
+        for (final p in existing.paidBy) {
+          _payerInput(p.userId).text =
+              Money.toMajor(p.cents).toStringAsFixed(2);
+        }
+      }
     } else {
       _payerId = ref.read(appProvider).requireValue.myUserId;
       _participants.addAll(_members.map((m) => m.userId));
@@ -122,11 +134,34 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     for (final c in _splitInputs.values) {
       c.dispose();
     }
+    for (final c in _payerInputs.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   TextEditingController _inputFor(String userId) =>
       _splitInputs.putIfAbsent(userId, () => TextEditingController());
+
+  TextEditingController _payerInput(String userId) =>
+      _payerInputs.putIfAbsent(userId, () => TextEditingController());
+
+  /// Build the payer list: a single payer for the whole total, or the
+  /// per-payer amounts when multi-payer mode is on. The engine validates that
+  /// these sum to the total.
+  List<Payer> _buildPayers(int totalCents) {
+    if (!_multiplePayers) {
+      return [Payer(userId: _payerId, cents: totalCents)];
+    }
+    return [
+      for (final m in _members)
+        if ((Money.tryParseToCents(_payerInput(m.userId).text) ?? 0) > 0)
+          Payer(
+            userId: m.userId,
+            cents: Money.tryParseToCents(_payerInput(m.userId).text)!,
+          ),
+    ];
+  }
 
   SplitPlanDto _buildPlan(int totalCents) {
     final ids = _participants.toList();
@@ -168,10 +203,17 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       return;
     }
 
+    final payers = _buildPayers(totalCents);
+    if (_multiplePayers &&
+        payers.fold(0, (sum, p) => sum + p.cents) != totalCents) {
+      _error('Payments must total ${Money.format(totalCents)}.');
+      return;
+    }
+
     final input = ExpenseInput(
       groupId: _groupId,
       description: _description.text.trim(),
-      paidBy: [Payer(userId: _payerId, cents: totalCents)],
+      paidBy: payers,
       totalCents: totalCents,
       split: _buildPlan(totalCents),
       category: _categoryId,
@@ -279,7 +321,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               },
             ),
             const SizedBox(height: 16),
-            _paidByRow(),
+            _payersSection(),
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -326,24 +368,87 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
   }
 
-  Widget _paidByRow() {
-    return Row(
-      children: [
-        const Text('Paid by'),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: _members.any((m) => m.userId == _payerId)
-                ? _payerId
-                : (_members.isEmpty ? null : _members.first.userId),
-            isExpanded: true,
-            items: [
-              for (final m in _members)
-                DropdownMenuItem(value: m.userId, child: Text(_label(m))),
-            ],
-            onChanged: (value) =>
-                setState(() => _payerId = value ?? _payerId),
+  /// "Paid by": a single payer (dropdown) or, in multi-payer mode, a per-person
+  /// amount list that must sum to the total (the engine enforces it too).
+  Widget _payersSection() {
+    if (!_multiplePayers) {
+      return Row(
+        children: [
+          const Text('Paid by'),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _members.any((m) => m.userId == _payerId)
+                  ? _payerId
+                  : (_members.isEmpty ? null : _members.first.userId),
+              isExpanded: true,
+              items: [
+                for (final m in _members)
+                  DropdownMenuItem(value: m.userId, child: Text(_label(m))),
+              ],
+              onChanged: (value) => setState(() => _payerId = value ?? _payerId),
+            ),
           ),
+          TextButton(
+            onPressed: () => setState(() => _multiplePayers = true),
+            child: const Text('Multiple'),
+          ),
+        ],
+      );
+    }
+
+    final total = Money.tryParseToCents(_amount.text) ?? 0;
+    final entered = _members.fold<int>(
+      0,
+      (sum, m) => sum + (Money.tryParseToCents(_payerInput(m.userId).text) ?? 0),
+    );
+    final balanced = entered == total;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('Paid by'),
+            const Spacer(),
+            TextButton(
+              onPressed: () => setState(() => _multiplePayers = false),
+              child: const Text('Single payer'),
+            ),
+          ],
+        ),
+        for (final m in _members)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Expanded(child: Text(_label(m))),
+                SizedBox(
+                  width: 110,
+                  child: TextField(
+                    controller: _payerInput(m.userId),
+                    textAlign: TextAlign.end,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      prefixText: 'USD ',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Text(
+          'Entered ${Money.format(entered)} of ${Money.format(total)}',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: balanced
+                    ? Theme.of(context).colorScheme.onSurfaceVariant
+                    : Theme.of(context).colorScheme.error,
+              ),
         ),
       ],
     );

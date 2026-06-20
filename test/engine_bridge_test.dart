@@ -136,6 +136,47 @@ void main() {
     expect((await engine.groupDetail(groupId: group))!.settlements, hasLength(1));
   });
 
+  test('multiple payers are attributed through the FFI', () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_mp');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: List.filled(32, 31),
+      dbKey: List.filled(32, 37),
+      site: BigInt.from(5),
+    );
+    await engine.setMyName(name: 'Me');
+    final me = await engine.myUserId();
+    final bob = await engine.addPerson(name: 'Bob');
+    final group = await engine.createGroup(name: 'Trip', memberIds: [bob]);
+
+    // A $60 dinner: I paid $40, Bob paid $20; split equally ($30 each).
+    await engine.addExpense(
+      input: ExpenseInput(
+        groupId: group,
+        description: 'Dinner',
+        paidBy: [
+          Payer(userId: me, cents: 4000),
+          Payer(userId: bob, cents: 2000),
+        ],
+        totalCents: 6000,
+        split: SplitPlanDto.equal(participants: [me, bob]),
+        category: 'food',
+        dateMs: 0,
+        draft: false,
+      ),
+    );
+
+    // I paid 40, owe 30 → net +10; Bob paid 20, owes 30 → net -10.
+    final detail = (await engine.groupDetail(groupId: group))!;
+    expect(detail.expenses.single.paidBy, hasLength(2));
+    int net(String u) =>
+        detail.members.firstWhere((m) => m.userId == u).netCents;
+    expect(net(me), 1000);
+    expect(net(bob), -1000);
+  });
+
   test('non-group expenses flow through the FFI', () async {
     final tmp = Directory.systemTemp.createTempSync('splittr_bridge_ng');
     addTearDown(() => tmp.deleteSync(recursive: true));
