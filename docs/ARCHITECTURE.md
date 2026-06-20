@@ -131,9 +131,18 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
 
 - **Identity** = an Ed25519 keypair; its public key is the permanent user id and
   doubles as the iroh `NodeId` (#6, ADR-0002).
-- **Devices** each have a keypair + `site_id`; the identity key signs device
-  certificates (#16). Ops are signed by the device key, verified up to the
-  identity.
+- **Devices** (#16, ADR-0005): **done (core)** — each device has its own keypair
+  + `site_id`. The identity (root) key signs `AuthorizeDevice` / `RevokeDevice`
+  certificate ops; normal ops are signed by the device key. Trust is two-layer:
+  *authenticity* is checked at ingestion (`Op::verify`), *authorization* is a
+  property of the whole op-set decided in the fold — a device's ops count only
+  while it is authorized and not yet revoked, so revocation converges regardless
+  of arrival order. Devices with no certificate resolve to themselves (the
+  first device self-enrols), keeping single-device data backward compatible.
+- **Recovery** (#34, ADR-0005): **done (core)** — the root seed maps to a BIP39
+  24-word phrase (`splittr-crypto::recovery_phrase` / `seed_from_phrase`) so a
+  user can restore their identity onto a new device. Encrypted-on-primary root
+  storage and the restore-from-phrase UX are the remaining tail.
 - **E2E** (#14): per-group content key, wrapped per recipient (X25519), rotated
   on member/device removal. Relays see only ciphertext.
 - **At rest** (#22): **done** — the op-log is encrypted with XChaCha20-Poly1305
@@ -215,6 +224,7 @@ degraded web client is acceptable.
 ## 13. Traceability
 
 - **Decisions:** ADR-0001 (core data model), ADR-0002 (transport: iroh),
-  ADR-0003 (language: Rust core), ADR-0004 (identity & key hierarchy). See `docs/adr/`.
+  ADR-0003 (language: Rust core), ADR-0004 (identity & key hierarchy),
+  ADR-0005 (device identity & recovery). See `docs/adr/`.
 - **Work:** Epic #18 holds the phased roadmap; the component-map table (§3) links
   each crate to its issues.

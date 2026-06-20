@@ -2,8 +2,41 @@
 
 use splittr_crdt::{
     net_balances, pairwise_with, settle_up, Cents, ExpenseId, ExpenseRecord, GroupId, Op, OpKind,
-    OriginalAmount, Projection, SettlementId, Transfer, UserId,
+    OriginalAmount, Projection, PublicKey, SettlementId, Transfer, UserId,
 };
+
+/// A device authorized for the local identity (#16).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DeviceView {
+    /// The device public key, hex-encoded.
+    pub device: String,
+    pub site: u64,
+    pub revoked: bool,
+    /// Whether this is the device currently running.
+    pub this_device: bool,
+}
+
+fn hex32(bytes: &[u8; 32]) -> String {
+    let mut s = String::with_capacity(64);
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+/// Devices authorized for `identity`, with the running device flagged.
+pub fn devices(p: &Projection, identity: PublicKey, this_device: PublicKey) -> Vec<DeviceView> {
+    p.devices
+        .iter()
+        .filter(|(_, rec)| rec.identity == identity)
+        .map(|(device, rec)| DeviceView {
+            device: hex32(&device.0),
+            site: rec.site,
+            revoked: rec.revoked,
+            this_device: *device == this_device,
+        })
+        .collect()
+}
 
 /// A group as shown in the groups list.
 #[derive(Clone, PartialEq, Eq, Debug)]

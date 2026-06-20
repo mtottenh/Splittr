@@ -4,6 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
+use splittr_crypto::PublicKey;
 use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, UserId};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -17,6 +18,18 @@ pub struct Projection {
     pub settlements: BTreeMap<SettlementId, SettlementRecord>,
     /// Resolution map: user id → canonical id (after alias merges).
     pub aliases: BTreeMap<UserId, UserId>,
+    /// Device keys authorized to act for an identity (#16/ADR-0005).
+    pub devices: BTreeMap<PublicKey, DeviceRecord>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct DeviceRecord {
+    /// The identity (root) public key this device acts for.
+    pub identity: PublicKey,
+    /// The device's CRDT site id (HLC tiebreaker).
+    pub site: u64,
+    /// True once a `RevokeDevice` has been seen for it.
+    pub revoked: bool,
 }
 
 impl Projection {
@@ -40,6 +53,7 @@ impl Projection {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
             aliases: self.aliases.clone(),
+            devices: self.devices.clone(),
         }
     }
 }

@@ -12,8 +12,8 @@ use splittr_app::{App, Cents, GroupId, Identity, RedbOpStore, SettlementId, Site
 
 use crate::convert::{to_original, to_paid_by, to_split_plan};
 use crate::dto::{
-    ActivityEntryDto, ExpenseInput, FriendBalanceDto, FriendDetailDto, GroupDetailDto,
-    GroupSummaryDto,
+    ActivityEntryDto, DeviceViewDto, ExpenseInput, FriendBalanceDto, FriendDetailDto,
+    GroupDetailDto, GroupSummaryDto,
 };
 
 pub struct Engine {
@@ -30,13 +30,16 @@ impl Engine {
     pub fn open(
         db_path: String,
         identity_seed: Vec<u8>,
+        device_seed: Vec<u8>,
         db_key: Vec<u8>,
         site: u64,
     ) -> Result<Engine> {
-        let seed = seed32(&identity_seed, "identity seed")?;
+        let id_seed = seed32(&identity_seed, "identity seed")?;
+        let dev_seed = seed32(&device_seed, "device seed")?;
         let key = seed32(&db_key, "db key")?;
         let store = RedbOpStore::open_encrypted(&db_path, key)?;
-        let app = App::new(Identity::from_seed(seed), store, SiteId(site))?;
+        let identity = Identity::from_seeds(id_seed, dev_seed);
+        let app = App::new(identity, store, SiteId(site))?;
         Ok(Engine {
             inner: Mutex::new(app),
         })
@@ -54,11 +57,7 @@ impl Engine {
 
     /// The local user's X25519 agreement public key as hex (#6/#14).
     pub fn my_agreement_public(&self) -> String {
-        self.lock()
-            .my_agreement_public()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
+        hex32(&self.lock().my_agreement_public())
     }
 
     pub fn set_my_name(&self, name: String) -> Result<()> {
@@ -286,6 +285,30 @@ impl Engine {
         self.lock().activity().into_iter().map(Into::into).collect()
     }
 
+    // --- devices (#16) -----------------------------------------------------
+
+    /// This device's public key (hex) — share it to enrol from another device.
+    pub fn my_device_public(&self) -> String {
+        hex32(&self.lock().my_device_public())
+    }
+
+    pub fn list_devices(&self) -> Vec<DeviceViewDto> {
+        self.lock().devices().into_iter().map(Into::into).collect()
+    }
+
+    /// Authorize another device (hex public key) to act for this identity.
+    pub fn authorize_device(&self, device_hex: String, site: u64) -> Result<()> {
+        self.lock()
+            .authorize_device(parse_hex32(&device_hex)?, site)?;
+        Ok(())
+    }
+
+    /// Revoke a device (hex public key).
+    pub fn revoke_device(&self, device_hex: String) -> Result<()> {
+        self.lock().revoke_device(parse_hex32(&device_hex)?)?;
+        Ok(())
+    }
+
     // --- internals ---------------------------------------------------------
 
     fn lock(&self) -> std::sync::MutexGuard<'_, App<RedbOpStore>> {
@@ -300,6 +323,21 @@ fn seed32(bytes: &[u8], what: &str) -> Result<[u8; 32]> {
     let mut seed = [0u8; 32];
     seed.copy_from_slice(bytes);
     Ok(seed)
+}
+
+fn hex32(bytes: &[u8; 32]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn parse_hex32(s: &str) -> Result<[u8; 32]> {
+    if s.len() != 64 {
+        return Err(anyhow!("expected 64 hex chars, got {}", s.len()));
+    }
+    let mut out = [0u8; 32];
+    for (i, byte) in out.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|_| anyhow!("invalid hex"))?;
+    }
+    Ok(out)
 }
 
 /// Convert `amount_cents` from `from_currency` to `to_currency` at `rate_micro`
@@ -324,4 +362,19 @@ pub fn convert_currency(
 /// formatting amounts on the shell side (#3).
 pub fn currency_minor_units(code: String) -> u32 {
     splittr_app::minor_units(&code)
+}
+
+/// The BIP39 recovery phrase for a 32-byte identity seed (#34).
+pub fn recovery_phrase(identity_seed: Vec<u8>) -> Result<String> {
+    Ok(splittr_app::recovery_phrase(&seed32(
+        &identity_seed,
+        "identity seed",
+    )?))
+}
+
+/// Re-derive the 32-byte identity seed from a recovery phrase (#34).
+pub fn seed_from_recovery_phrase(phrase: String) -> Result<Vec<u8>> {
+    splittr_app::seed_from_phrase(&phrase)
+        .map(|s| s.to_vec())
+        .ok_or_else(|| anyhow!("invalid recovery phrase"))
 }

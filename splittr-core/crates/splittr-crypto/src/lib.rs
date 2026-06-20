@@ -10,9 +10,11 @@
 mod aead;
 mod agreement;
 mod keys;
+mod recovery;
 mod signature;
 
 pub use aead::{open, seal, AeadKey};
 pub use agreement::{AgreementKey, AgreementPublic};
 pub use keys::{PublicKey, SigningKey};
+pub use recovery::{recovery_phrase, seed_from_phrase};
 pub use signature::{sign, verify, Signature};

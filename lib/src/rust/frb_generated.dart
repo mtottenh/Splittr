@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1748292434;
+  int get rustContentHash => 1787037418;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -93,6 +93,12 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiEngineAddPerson({
     required Engine that,
     required String name,
+  });
+
+  Future<void> crateApiEngineAuthorizeDevice({
+    required Engine that,
+    required String deviceHex,
+    required BigInt site,
   });
 
   Future<String> crateApiEngineCreateGroup({
@@ -132,12 +138,16 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<GroupSummaryDto>> crateApiEngineGroups({required Engine that});
 
+  Future<List<DeviceViewDto>> crateApiEngineListDevices({required Engine that});
+
   Future<void> crateApiEngineLockExpense({
     required Engine that,
     required String expenseId,
   });
 
   Future<String> crateApiEngineMyAgreementPublic({required Engine that});
+
+  Future<String> crateApiEngineMyDevicePublic({required Engine that});
 
   Future<String?> crateApiEngineMyName({required Engine that});
 
@@ -146,6 +156,7 @@ abstract class RustLibApi extends BaseApi {
   Future<Engine> crateApiEngineOpen({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> deviceSeed,
     required List<int> dbKey,
     required BigInt site,
   });
@@ -184,6 +195,11 @@ abstract class RustLibApi extends BaseApi {
     required String name,
   });
 
+  Future<void> crateApiEngineRevokeDevice({
+    required Engine that,
+    required String deviceHex,
+  });
+
   Future<void> crateApiEngineSetClosedPeriod({
     required Engine that,
     required String groupId,
@@ -214,6 +230,10 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<int> crateApiCurrencyMinorUnits({required String code});
+
+  Future<String> crateApiRecoveryPhrase({required List<int> identitySeed});
+
+  Future<Uint8List> crateApiSeedFromRecoveryPhrase({required String phrase});
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Engine;
 
@@ -377,6 +397,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiEngineAuthorizeDevice({
+    required Engine that,
+    required String deviceHex,
+    required BigInt site,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(deviceHex, serializer);
+          sse_encode_u_64(site, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineAuthorizeDeviceConstMeta,
+        argValues: [that, deviceHex, site],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineAuthorizeDeviceConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_authorize_device",
+        argNames: ["that", "deviceHex", "site"],
+      );
+
+  @override
   Future<String> crateApiEngineCreateGroup({
     required Engine that,
     required String name,
@@ -397,7 +457,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -434,7 +494,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -472,7 +532,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -512,7 +572,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -549,7 +609,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -582,7 +642,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -617,7 +677,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -650,7 +710,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -669,6 +729,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "Engine_groups", argNames: ["that"]);
 
   @override
+  Future<List<DeviceViewDto>> crateApiEngineListDevices({
+    required Engine that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_view_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineListDevicesConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineListDevicesConstMeta =>
+      const TaskConstMeta(debugName: "Engine_list_devices", argNames: ["that"]);
+
+  @override
   Future<void> crateApiEngineLockExpense({
     required Engine that,
     required String expenseId,
@@ -685,7 +778,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -718,7 +811,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -740,6 +833,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiEngineMyDevicePublic({required Engine that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiEngineMyDevicePublicConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineMyDevicePublicConstMeta =>
+      const TaskConstMeta(
+        debugName: "Engine_my_device_public",
+        argNames: ["that"],
+      );
+
+  @override
   Future<String?> crateApiEngineMyName({required Engine that}) {
     return handler.executeNormal(
       NormalTask(
@@ -752,7 +879,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 18,
             port: port_,
           );
         },
@@ -783,7 +910,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 19,
             port: port_,
           );
         },
@@ -805,6 +932,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<Engine> crateApiEngineOpen({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> deviceSeed,
     required List<int> dbKey,
     required BigInt site,
   }) {
@@ -814,12 +942,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbPath, serializer);
           sse_encode_list_prim_u_8_loose(identitySeed, serializer);
+          sse_encode_list_prim_u_8_loose(deviceSeed, serializer);
           sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_u_64(site, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 20,
             port: port_,
           );
         },
@@ -829,7 +958,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiEngineOpenConstMeta,
-        argValues: [dbPath, identitySeed, dbKey, site],
+        argValues: [dbPath, identitySeed, deviceSeed, dbKey, site],
         apiImpl: this,
       ),
     );
@@ -837,7 +966,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiEngineOpenConstMeta => const TaskConstMeta(
     debugName: "Engine_open",
-    argNames: ["dbPath", "identitySeed", "dbKey", "site"],
+    argNames: ["dbPath", "identitySeed", "deviceSeed", "dbKey", "site"],
   );
 
   @override
@@ -853,7 +982,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 21,
             port: port_,
           );
         },
@@ -891,7 +1020,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 22,
             port: port_,
           );
         },
@@ -933,7 +1062,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 23,
             port: port_,
           );
         },
@@ -977,7 +1106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1017,7 +1146,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1056,7 +1185,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1074,6 +1203,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiEngineRenameGroupConstMeta => const TaskConstMeta(
     debugName: "Engine_rename_group",
     argNames: ["that", "groupId", "name"],
+  );
+
+  @override
+  Future<void> crateApiEngineRevokeDevice({
+    required Engine that,
+    required String deviceHex,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEngine(
+            that,
+            serializer,
+          );
+          sse_encode_String(deviceHex, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiEngineRevokeDeviceConstMeta,
+        argValues: [that, deviceHex],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineRevokeDeviceConstMeta => const TaskConstMeta(
+    debugName: "Engine_revoke_device",
+    argNames: ["that", "deviceHex"],
   );
 
   @override
@@ -1095,7 +1261,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1135,7 +1301,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1173,7 +1339,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1210,7 +1376,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1249,7 +1415,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1279,7 +1445,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1298,6 +1464,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     debugName: "currency_minor_units",
     argNames: ["code"],
   );
+
+  @override
+  Future<String> crateApiRecoveryPhrase({required List<int> identitySeed}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(identitySeed, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiRecoveryPhraseConstMeta,
+        argValues: [identitySeed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiRecoveryPhraseConstMeta => const TaskConstMeta(
+    debugName: "recovery_phrase",
+    argNames: ["identitySeed"],
+  );
+
+  @override
+  Future<Uint8List> crateApiSeedFromRecoveryPhrase({required String phrase}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(phrase, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSeedFromRecoveryPhraseConstMeta,
+        argValues: [phrase],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSeedFromRecoveryPhraseConstMeta =>
+      const TaskConstMeta(
+        debugName: "seed_from_recovery_phrase",
+        argNames: ["phrase"],
+      );
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Engine => wire
@@ -1387,6 +1614,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   OriginalAmountDto dco_decode_box_autoadd_original_amount_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_original_amount_dto(raw);
+  }
+
+  @protected
+  DeviceViewDto dco_decode_device_view_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return DeviceViewDto(
+      device: dco_decode_String(arr[0]),
+      site: dco_decode_u_64(arr[1]),
+      revoked: dco_decode_bool(arr[2]),
+      thisDevice: dco_decode_bool(arr[3]),
+    );
   }
 
   @protected
@@ -1509,6 +1750,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<ActivityEntryDto> dco_decode_list_activity_entry_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_activity_entry_dto).toList();
+  }
+
+  @protected
+  List<DeviceViewDto> dco_decode_list_device_view_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_device_view_dto).toList();
   }
 
   @protected
@@ -1842,6 +2089,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DeviceViewDto sse_decode_device_view_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_device = sse_decode_String(deserializer);
+    var var_site = sse_decode_u_64(deserializer);
+    var var_revoked = sse_decode_bool(deserializer);
+    var var_thisDevice = sse_decode_bool(deserializer);
+    return DeviceViewDto(
+      device: var_device,
+      site: var_site,
+      revoked: var_revoked,
+      thisDevice: var_thisDevice,
+    );
+  }
+
+  @protected
   ExpenseInput sse_decode_expense_input(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_groupId = sse_decode_opt_String(deserializer);
@@ -2003,6 +2265,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <ActivityEntryDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_activity_entry_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DeviceViewDto> sse_decode_list_device_view_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DeviceViewDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_device_view_dto(deserializer));
     }
     return ans_;
   }
@@ -2445,6 +2721,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_device_view_dto(
+    DeviceViewDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.device, serializer);
+    sse_encode_u_64(self.site, serializer);
+    sse_encode_bool(self.revoked, serializer);
+    sse_encode_bool(self.thisDevice, serializer);
+  }
+
+  @protected
   void sse_encode_expense_input(ExpenseInput self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.groupId, serializer);
@@ -2557,6 +2845,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_activity_entry_dto(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_device_view_dto(
+    List<DeviceViewDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_device_view_dto(item, serializer);
     }
   }
 
@@ -2889,6 +3189,16 @@ class EngineImpl extends RustOpaque implements Engine {
   Future<String> addPerson({required String name}) =>
       RustLib.instance.api.crateApiEngineAddPerson(that: this, name: name);
 
+  /// Authorize another device (hex public key) to act for this identity.
+  Future<void> authorizeDevice({
+    required String deviceHex,
+    required BigInt site,
+  }) => RustLib.instance.api.crateApiEngineAuthorizeDevice(
+    that: this,
+    deviceHex: deviceHex,
+    site: site,
+  );
+
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
@@ -2937,12 +3247,19 @@ class EngineImpl extends RustOpaque implements Engine {
   Future<List<GroupSummaryDto>> groups() =>
       RustLib.instance.api.crateApiEngineGroups(that: this);
 
+  Future<List<DeviceViewDto>> listDevices() =>
+      RustLib.instance.api.crateApiEngineListDevices(that: this);
+
   Future<void> lockExpense({required String expenseId}) => RustLib.instance.api
       .crateApiEngineLockExpense(that: this, expenseId: expenseId);
 
   /// The local user's X25519 agreement public key as hex (#6/#14).
   Future<String> myAgreementPublic() =>
       RustLib.instance.api.crateApiEngineMyAgreementPublic(that: this);
+
+  /// This device's public key (hex) — share it to enrol from another device.
+  Future<String> myDevicePublic() =>
+      RustLib.instance.api.crateApiEngineMyDevicePublic(that: this);
 
   Future<String?> myName() =>
       RustLib.instance.api.crateApiEngineMyName(that: this);
@@ -3001,6 +3318,10 @@ class EngineImpl extends RustOpaque implements Engine {
         groupId: groupId,
         name: name,
       );
+
+  /// Revoke a device (hex public key).
+  Future<void> revokeDevice({required String deviceHex}) => RustLib.instance.api
+      .crateApiEngineRevokeDevice(that: this, deviceHex: deviceHex);
 
   /// Close a group's accounting period (#15): expenses dated at or before
   /// `until_ms` become uneditable. Pass `0` to reopen.

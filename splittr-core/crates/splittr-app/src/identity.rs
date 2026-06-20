@@ -1,36 +1,50 @@
-//! The local user's identity: a signing key plus the stable user id derived
-//! from its public key. Secure storage of the key is a platform concern
-//! (#16/#22); here the key is held in memory and supplied at construction.
+//! The local user's identity and device keys (#6/#16, ADR-0004/0005).
+//!
+//! - The **identity (root) key** (Ed25519) is the stable user id; it derives the
+//!   X25519 agreement key and signs only device certificates / revocations.
+//! - The **device key** (Ed25519) signs all normal ops; revoking a device blocks
+//!   its future ops without touching the identity.
+//!
+//! Secure storage of the seeds is a platform concern (#22/#34).
 
 use splittr_crdt::{AgreementKey, AgreementPublic, PublicKey, SigningKey, UserId};
 
 pub struct Identity {
-    key: SigningKey,
-    /// X25519 key for content encryption (#14), derived from the same seed.
+    root: SigningKey,
     agreement: AgreementKey,
+    device: SigningKey,
     user_id: UserId,
 }
 
 impl Identity {
-    /// Build from a 32-byte seed (both the Ed25519 signing key and the X25519
-    /// agreement key are derived from it).
-    pub fn from_seed(seed: [u8; 32]) -> Self {
-        let key = SigningKey::from_seed(seed);
-        let user_id = user_id_for(&key.public());
+    /// Build from distinct identity and device seeds.
+    pub fn from_seeds(identity_seed: [u8; 32], device_seed: [u8; 32]) -> Self {
+        let root = SigningKey::from_seed(identity_seed);
+        let user_id = user_id_for(&root.public());
         Self {
-            key,
-            agreement: AgreementKey::from_seed(seed),
+            root,
+            agreement: AgreementKey::from_seed(identity_seed),
+            device: SigningKey::from_seed(device_seed),
             user_id,
         }
     }
 
-    /// Generate a fresh identity from the OS CSPRNG.
+    /// Convenience for tests: derive a distinct device seed from the identity
+    /// seed so the device key is never equal to the root key.
+    pub fn from_seed(seed: [u8; 32]) -> Self {
+        let mut device_seed = seed;
+        device_seed[0] ^= 0xff;
+        Self::from_seeds(seed, device_seed)
+    }
+
+    /// Generate a fresh identity + device from the OS CSPRNG.
     pub fn generate() -> Self {
-        let key = SigningKey::generate();
-        let user_id = user_id_for(&key.public());
+        let root = SigningKey::generate();
+        let user_id = user_id_for(&root.public());
         Self {
-            key,
+            root,
             agreement: AgreementKey::generate(),
+            device: SigningKey::generate(),
             user_id,
         }
     }
@@ -39,8 +53,14 @@ impl Identity {
         &self.user_id
     }
 
+    /// The identity (root) public key.
     pub fn public(&self) -> PublicKey {
-        self.key.public()
+        self.root.public()
+    }
+
+    /// This device's public key.
+    pub fn device_public(&self) -> PublicKey {
+        self.device.public()
     }
 
     /// The X25519 public key peers use to encrypt content to this user (#14).
@@ -48,8 +68,14 @@ impl Identity {
         self.agreement.public()
     }
 
-    pub(crate) fn key(&self) -> &SigningKey {
-        &self.key
+    /// Signs normal ops.
+    pub(crate) fn device_key(&self) -> &SigningKey {
+        &self.device
+    }
+
+    /// Signs device certificates / revocations only (#16/ADR-0005).
+    pub(crate) fn root_key(&self) -> &SigningKey {
+        &self.root
     }
 }
 

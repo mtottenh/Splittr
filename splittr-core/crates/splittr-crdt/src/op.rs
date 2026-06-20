@@ -100,6 +100,20 @@ pub enum OpKind {
         user: UserId,
         key: [u8; 32],
     },
+    /// Authorize a device key to act for an identity (#16, ADR-0005). Valid only
+    /// when signed by `identity` (`op.author == identity`) — root-only enrolment.
+    /// Establishes `device → identity`; normal ops are then signed by `device`.
+    AuthorizeDevice {
+        identity: PublicKey,
+        device: PublicKey,
+        site: u64,
+    },
+    /// Revoke a previously-authorized device (#16). Terminal; signed by the
+    /// identity. Ops authored by `device` at/after this op's HLC stop counting.
+    RevokeDevice {
+        identity: PublicKey,
+        device: PublicKey,
+    },
 }
 
 /// An immutable, content-addressed, signed operation.

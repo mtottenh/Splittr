@@ -20,17 +20,28 @@ final engineProvider = FutureProvider<Engine>((ref) async {
   final dir = await getApplicationSupportDirectory();
   final secrets = _SecretStore(dir);
 
-  // The identity seed is the user's key material; the db key encrypts the
-  // op-log at rest (#22). Both live in the OS keystore, never next to the db.
+  // The identity seed is the user's root key material (#6); the device seed is
+  // this device's own key (#16); the db key encrypts the op-log at rest (#22).
+  // All live in the OS keystore, never next to the db. The site (HLC tiebreaker)
+  // is per-device, so derive it from the device seed.
   final seed = await secrets.loadOrCreate('splittr_identity_seed', 'identity.seed');
+  final deviceSeed =
+      await secrets.loadOrCreate('splittr_device_seed', 'device.seed');
   final dbKey = await secrets.loadOrCreate('splittr_db_key', 'db.key');
 
   return Engine.open(
     dbPath: '${dir.path}/splittr.redb',
     identitySeed: seed,
+    deviceSeed: deviceSeed,
     dbKey: dbKey,
-    site: _siteFromSeed(seed),
+    site: _siteFromSeed(deviceSeed),
   );
+});
+
+/// Loads the local identity seed (for deriving the recovery phrase, #34).
+final identitySeedProvider = FutureProvider<List<int>>((ref) async {
+  final dir = await getApplicationSupportDirectory();
+  return _SecretStore(dir).loadOrCreate('splittr_identity_seed', 'identity.seed');
 });
 
 /// Loads/persists 32-byte secrets, preferring the OS keystore and falling back

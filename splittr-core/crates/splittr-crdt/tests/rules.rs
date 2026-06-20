@@ -323,6 +323,105 @@ fn agreement_key_is_published_and_lww() {
     assert_eq!(project(&[profile, k1, k2]), p, "order independent");
 }
 
+fn hlc(n: u32) -> Hlc {
+    Hlc {
+        wall_ms: n as u64,
+        counter: n,
+        site: SiteId(0),
+    }
+}
+
+#[test]
+fn device_revocation_excludes_only_post_revocation_ops() {
+    let root = SigningKey::from_seed([10u8; 32]);
+    let device = SigningKey::from_seed([11u8; 32]);
+    let (id_pub, dev_pub) = (root.public(), device.public());
+
+    let authz = Op::signed(
+        hlc(1),
+        &root,
+        OpKind::AuthorizeDevice {
+            identity: id_pub,
+            device: dev_pub,
+            site: 7,
+        },
+    );
+    let before = Op::signed(
+        hlc(3),
+        &device,
+        OpKind::CreateGroup {
+            group: GroupId::from("g_before"),
+            name: "Before".into(),
+        },
+    );
+    let revoke = Op::signed(
+        hlc(5),
+        &root,
+        OpKind::RevokeDevice {
+            identity: id_pub,
+            device: dev_pub,
+        },
+    );
+    let after = Op::signed(
+        hlc(7),
+        &device,
+        OpKind::CreateGroup {
+            group: GroupId::from("g_after"),
+            name: "After".into(),
+        },
+    );
+
+    let p = project(&[authz.clone(), before.clone(), revoke.clone(), after.clone()]);
+    assert!(
+        p.groups.contains_key(&GroupId::from("g_before")),
+        "a pre-revocation op by the device still counts"
+    );
+    assert!(
+        !p.groups.contains_key(&GroupId::from("g_after")),
+        "a post-revocation op by the device is excluded"
+    );
+    assert!(p.devices[&dev_pub].revoked);
+    assert_eq!(p.devices[&dev_pub].identity, id_pub);
+    assert_eq!(p.devices[&dev_pub].site, 7);
+
+    // Order-independent.
+    assert_eq!(project(&[after, revoke, before, authz]), p);
+}
+
+#[test]
+fn foreign_device_authorization_is_ignored() {
+    let alice = SigningKey::from_seed([20u8; 32]);
+    let mallory = SigningKey::from_seed([21u8; 32]);
+    let device = SigningKey::from_seed([22u8; 32]);
+
+    // Mallory tries to authorize `device` for Alice's identity (not self-signed).
+    let forged = Op::signed(
+        hlc(1),
+        &mallory,
+        OpKind::AuthorizeDevice {
+            identity: alice.public(),
+            device: device.public(),
+            site: 1,
+        },
+    );
+    let by_device = Op::signed(
+        hlc(2),
+        &device,
+        OpKind::CreateGroup {
+            group: GroupId::from("g"),
+            name: "G".into(),
+        },
+    );
+
+    let p = project(&[forged, by_device]);
+    assert!(
+        !p.devices.contains_key(&device.public()),
+        "an authorize not signed by the identity is ignored"
+    );
+    // With no (valid) cert the device acts as its own identity, so its op counts.
+    assert!(p.groups.contains_key(&GroupId::from("g")));
+}
+
 #[test]
 fn signed_op_verifies_and_tampering_is_detected() {
     let valid = op(

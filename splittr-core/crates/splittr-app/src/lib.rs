@@ -19,13 +19,13 @@ pub use clock::HlcGenerator;
 pub use error::{AppError, Result};
 pub use identity::{user_id_for, Identity};
 pub use query::{
-    ActivityEntry, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
+    ActivityEntry, DeviceView, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
     MemberAmount, MemberBalance, SettlementView,
 };
 
 // Convenience re-exports so callers/tests depend only on `splittr-app`.
 pub use splittr_crdt::{
-    convert, minor_units, Cents, ExpenseId, GroupId, OriginalAmount, SettlementId, SigningKey,
-    SiteId, SplitPlan, Transfer, UserId,
+    convert, minor_units, recovery_phrase, seed_from_phrase, Cents, ExpenseId, GroupId,
+    OriginalAmount, SettlementId, SigningKey, SiteId, SplitPlan, Transfer, UserId,
 };
 pub use splittr_store::{MemoryOpStore, OpStore, RedbOpStore, Repository};

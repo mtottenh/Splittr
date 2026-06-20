@@ -34,6 +34,36 @@ class ActivityEntryDto {
           wallMs == other.wallMs;
 }
 
+/// A device authorized for the local identity (#16).
+class DeviceViewDto {
+  /// The device public key, hex-encoded.
+  final String device;
+  final BigInt site;
+  final bool revoked;
+  final bool thisDevice;
+
+  const DeviceViewDto({
+    required this.device,
+    required this.site,
+    required this.revoked,
+    required this.thisDevice,
+  });
+
+  @override
+  int get hashCode =>
+      device.hashCode ^ site.hashCode ^ revoked.hashCode ^ thisDevice.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DeviceViewDto &&
+          runtimeType == other.runtimeType &&
+          device == other.device &&
+          site == other.site &&
+          revoked == other.revoked &&
+          thisDevice == other.thisDevice;
+}
+
 /// Input for adding or editing an expense.
 class ExpenseInput {
   /// `None` for a non-group (friend-to-friend) expense (#31). Ignored on edit.

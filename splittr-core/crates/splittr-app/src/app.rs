@@ -13,7 +13,9 @@ use uuid::Uuid;
 use crate::clock::HlcGenerator;
 use crate::error::{AppError, Result};
 use crate::identity::Identity;
-use crate::query::{self, ActivityEntry, FriendBalance, FriendDetail, GroupDetail, GroupSummary};
+use crate::query::{
+    self, ActivityEntry, DeviceView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
+};
 
 /// Drives the engine for the local user. All writes go through [`App::commit`],
 /// which stamps an HLC, signs the op with the local identity, and appends it.
@@ -25,10 +27,27 @@ pub struct App<S: OpStore> {
 
 impl<S: OpStore> App<S> {
     pub fn new(identity: Identity, store: S, site: SiteId) -> Result<Self> {
-        Ok(Self {
+        let mut app = Self {
             identity,
             repo: Repository::open(store)?,
             clock: HlcGenerator::new(site),
+        };
+        app.ensure_device_authorized(site)?;
+        Ok(app)
+    }
+
+    /// Self-issue this device's certificate (root-signed) the first time it runs,
+    /// so its device-signed ops attribute to the identity (#16/ADR-0005).
+    fn ensure_device_authorized(&mut self, site: SiteId) -> Result<()> {
+        let device = self.identity.device_public();
+        if self.repo.projection().devices.contains_key(&device) {
+            return Ok(());
+        }
+        let identity = self.identity.public();
+        self.commit_as_root(OpKind::AuthorizeDevice {
+            identity,
+            device,
+            site: site.0,
         })
     }
 
@@ -410,6 +429,42 @@ impl<S: OpStore> App<S> {
         query::activity(&ops, &self.repo.projection(), self.me())
     }
 
+    /// This device's public key (hex). Used to enrol it from another device.
+    pub fn my_device_public(&self) -> [u8; 32] {
+        self.identity.device_public().0
+    }
+
+    /// Devices authorized for the local identity (#16).
+    pub fn devices(&self) -> Vec<DeviceView> {
+        query::devices(
+            &self.repo.projection(),
+            self.identity.public(),
+            self.identity.device_public(),
+        )
+    }
+
+    // --- devices (#16/ADR-0005) -------------------------------------------
+
+    /// Authorize another device (its 32-byte public key) to act for this
+    /// identity. Root-signed.
+    pub fn authorize_device(&mut self, device: [u8; 32], site: u64) -> Result<()> {
+        let identity = self.identity.public();
+        self.commit_as_root(OpKind::AuthorizeDevice {
+            identity,
+            device: splittr_crdt::PublicKey(device),
+            site,
+        })
+    }
+
+    /// Revoke a device. Root-signed; its ops at/after this op stop counting.
+    pub fn revoke_device(&mut self, device: [u8; 32]) -> Result<()> {
+        let identity = self.identity.public();
+        self.commit_as_root(OpKind::RevokeDevice {
+            identity,
+            device: splittr_crdt::PublicKey(device),
+        })
+    }
+
     // --- internals ---------------------------------------------------------
 
     fn set_membership(&mut self, group: &GroupId, user: &UserId, member: bool) -> Result<()> {
@@ -420,10 +475,24 @@ impl<S: OpStore> App<S> {
         })
     }
 
-    /// Build, sign and append an op for the local identity.
+    /// Build, sign (with the **device** key) and append a normal op.
     fn commit(&mut self, kind: OpKind) -> Result<()> {
+        self.commit_signed(kind, false)
+    }
+
+    /// Sign with the **identity (root)** key — only for device certs/revocations.
+    fn commit_as_root(&mut self, kind: OpKind) -> Result<()> {
+        self.commit_signed(kind, true)
+    }
+
+    fn commit_signed(&mut self, kind: OpKind, as_root: bool) -> Result<()> {
         let hlc = self.clock.now();
-        let op = Op::signed(hlc, self.identity.key(), kind);
+        let key = if as_root {
+            self.identity.root_key()
+        } else {
+            self.identity.device_key()
+        };
+        let op = Op::signed(hlc, key, kind);
         match self.repo.append(&op)? {
             Applied::Rejected => Err(AppError::Validation("op failed verification".into())),
             Applied::Stored | Applied::Duplicate => Ok(()),

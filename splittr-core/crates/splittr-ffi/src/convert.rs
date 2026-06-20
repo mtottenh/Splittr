@@ -4,15 +4,27 @@
 use std::collections::BTreeMap;
 
 use splittr_app::{
-    ActivityEntry, Cents, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
-    MemberAmount, MemberBalance, OriginalAmount, SettlementView, SplitPlan, Transfer, UserId,
+    ActivityEntry, Cents, DeviceView, ExpenseView, FriendBalance, FriendDetail, GroupDetail,
+    GroupSummary, MemberAmount, MemberBalance, OriginalAmount, SettlementView, SplitPlan, Transfer,
+    UserId,
 };
 
 use crate::dto::{
-    ActivityEntryDto, ExpenseViewDto, FriendBalanceDto, FriendDetailDto, GroupDetailDto,
-    GroupSummaryDto, MemberAmountDto, MemberBalanceDto, OriginalAmountDto, Payer,
+    ActivityEntryDto, DeviceViewDto, ExpenseViewDto, FriendBalanceDto, FriendDetailDto,
+    GroupDetailDto, GroupSummaryDto, MemberAmountDto, MemberBalanceDto, OriginalAmountDto, Payer,
     SettlementViewDto, SplitPlanDto, TransferDto, Weight,
 };
+
+impl From<DeviceView> for DeviceViewDto {
+    fn from(d: DeviceView) -> Self {
+        DeviceViewDto {
+            device: d.device,
+            site: d.site,
+            revoked: d.revoked,
+            this_device: d.this_device,
+        }
+    }
+}
 
 /// FFI → domain conversion for the optional foreign-currency metadata (#3).
 pub(crate) fn to_original(dto: Option<OriginalAmountDto>) -> Option<OriginalAmount> {

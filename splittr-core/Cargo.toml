@@ -24,6 +24,8 @@ serde-big-array = "0.5"
 # Symmetric AEAD for at-rest encryption (#22) and X25519 key agreement (#6/#14).
 chacha20poly1305 = "0.10"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+# BIP39 recovery phrase for the identity seed (#34).
+bip39 = "2"
 # Pure-Rust embedded store for the durable op-log (no C toolchain; stores
 # opaque, eventually-encrypted op bytes keyed by content id).
 redb = "2"

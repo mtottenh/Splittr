@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/app_lock.dart';
 import '../../state/providers.dart';
 import '../widgets/user_avatar.dart';
+import 'devices_screen.dart';
 
 /// Lets the user edit their own profile and see app information.
 class AccountScreen extends ConsumerWidget {
@@ -48,6 +49,19 @@ class AccountScreen extends ConsumerWidget {
           ),
           const Divider(height: 32),
           _AppLockTile(),
+          ListTile(
+            leading: const Icon(Icons.devices),
+            title: const Text('Linked devices'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const DevicesScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.vpn_key_outlined),
+            title: const Text('Recovery phrase'),
+            subtitle: const Text('Back up your identity'),
+            onTap: () => _showRecoveryPhrase(context, ref),
+          ),
           const Divider(height: 32),
           const AboutListTile(
             applicationName: 'Splittr',
@@ -92,6 +106,39 @@ class AccountScreen extends ConsumerWidget {
     if (name != null && name.isNotEmpty) {
       await ref.read(appProvider.notifier).setMyName(name);
     }
+  }
+
+  Future<void> _showRecoveryPhrase(BuildContext context, WidgetRef ref) async {
+    final phrase = await ref.read(recoveryPhraseProvider.future);
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Recovery phrase'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Write these 24 words down and keep them safe. Anyone with them '
+              'can restore your identity; lose them and a lost device cannot be '
+              'recovered.',
+            ),
+            const SizedBox(height: 16),
+            SelectableText(
+              phrase,
+              style: const TextStyle(fontFamily: 'monospace', height: 1.5),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

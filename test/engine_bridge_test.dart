@@ -29,6 +29,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 7),
+      deviceSeed: List.filled(32, 7 + 100),
       dbKey: List.filled(32, 11),
       site: BigInt.one,
     );
@@ -77,6 +78,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 9),
+      deviceSeed: List.filled(32, 9 + 100),
       dbKey: List.filled(32, 13),
       site: BigInt.two,
     );
@@ -144,6 +146,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 41),
+      deviceSeed: List.filled(32, 41 + 100),
       dbKey: List.filled(32, 43),
       site: BigInt.from(6),
     );
@@ -196,6 +199,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 31),
+      deviceSeed: List.filled(32, 31 + 100),
       dbKey: List.filled(32, 37),
       site: BigInt.from(5),
     );
@@ -237,6 +241,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 23),
+      deviceSeed: List.filled(32, 23 + 100),
       dbKey: List.filled(32, 29),
       site: BigInt.from(4),
     );
@@ -277,6 +282,7 @@ void main() {
     final engine = await Engine.open(
       dbPath: '${tmp.path}/engine.redb',
       identitySeed: List.filled(32, 5),
+      deviceSeed: List.filled(32, 5 + 100),
       dbKey: List.filled(32, 17),
       site: BigInt.from(3),
     );
@@ -319,5 +325,39 @@ void main() {
       expenseId: expense,
       input: input(draft: false, dateMs: 100),
     );
+  });
+
+  test('device enrolment + recovery phrase through the FFI (#16/#34)', () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_dev');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+
+    final idSeed = List.filled(32, 61);
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: idSeed,
+      deviceSeed: List.filled(32, 62),
+      dbKey: List.filled(32, 63),
+      site: BigInt.from(8),
+    );
+    await engine.setMyName(name: 'Me');
+
+    // This device is self-authorized on open.
+    var devices = await engine.listDevices();
+    expect(devices.single.thisDevice, isTrue);
+    expect(devices.single.device, await engine.myDevicePublic());
+
+    // Enrol + revoke a second device.
+    final second = '22' * 32;
+    await engine.authorizeDevice(deviceHex: second, site: BigInt.from(9));
+    devices = await engine.listDevices();
+    expect(devices.any((d) => d.device == second && !d.revoked), isTrue);
+    await engine.revokeDevice(deviceHex: second);
+    devices = await engine.listDevices();
+    expect(devices.firstWhere((d) => d.device == second).revoked, isTrue);
+
+    // The recovery phrase round-trips to the same seed.
+    final phrase = await recoveryPhrase(identitySeed: idSeed);
+    expect(phrase.split(' ').length, 24);
+    expect(await seedFromRecoveryPhrase(phrase: phrase), idSeed);
   });
 }

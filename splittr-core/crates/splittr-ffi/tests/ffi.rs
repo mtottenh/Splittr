@@ -11,6 +11,10 @@ fn db_key() -> Vec<u8> {
     vec![2u8; 32]
 }
 
+fn device_seed() -> Vec<u8> {
+    vec![3u8; 32]
+}
+
 fn db_path(dir: &tempfile::TempDir) -> String {
     dir.path().join("engine.redb").to_str().unwrap().to_string()
 }
@@ -18,7 +22,7 @@ fn db_path(dir: &tempfile::TempDir) -> String {
 #[test]
 fn engine_runs_the_core_flow() {
     let dir = tempfile::tempdir().unwrap();
-    let engine = Engine::open(db_path(&dir), seed(), db_key(), 1).unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), device_seed(), db_key(), 1).unwrap();
 
     engine.set_my_name("Me".into()).unwrap();
     let me = engine.my_user_id();
@@ -70,7 +74,7 @@ fn engine_runs_the_core_flow() {
 #[test]
 fn draft_publish_and_closed_period_through_the_ffi() {
     let dir = tempfile::tempdir().unwrap();
-    let engine = Engine::open(db_path(&dir), seed(), db_key(), 1).unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), device_seed(), db_key(), 1).unwrap();
     engine.set_my_name("Me".into()).unwrap();
     let me = engine.my_user_id();
     let bob = engine.add_person("Bob".into()).unwrap();
@@ -120,9 +124,40 @@ fn draft_publish_and_closed_period_through_the_ffi() {
 }
 
 #[test]
+fn device_authorize_and_revoke_through_the_ffi() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), device_seed(), db_key(), 1).unwrap();
+    engine.set_my_name("Me".into()).unwrap();
+
+    // This (primary) device is self-authorized on open.
+    let devices = engine.list_devices();
+    assert_eq!(devices.len(), 1);
+    assert!(devices[0].this_device);
+    assert_eq!(devices[0].device, engine.my_device_public());
+    assert!(!devices[0].revoked);
+
+    // Enrol a second device (just its public key here; the handshake is #35).
+    let second = "11".repeat(32);
+    engine.authorize_device(second.clone(), 2).unwrap();
+    let devices = engine.list_devices();
+    assert_eq!(devices.len(), 2);
+    assert!(devices.iter().any(|d| d.device == second && !d.revoked));
+
+    // Revoke it.
+    engine.revoke_device(second.clone()).unwrap();
+    assert!(engine
+        .list_devices()
+        .iter()
+        .any(|d| d.device == second && d.revoked));
+
+    // A bad hex key is rejected.
+    assert!(engine.authorize_device("nothex".into(), 3).is_err());
+}
+
+#[test]
 fn rejects_a_malformed_seed() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(Engine::open(db_path(&dir), vec![1, 2, 3], db_key(), 1).is_err());
+    assert!(Engine::open(db_path(&dir), vec![1, 2, 3], device_seed(), db_key(), 1).is_err());
 }
 
 #[test]
@@ -131,12 +166,12 @@ fn state_persists_across_reopen() {
     let path = db_path(&dir);
 
     let group = {
-        let engine = Engine::open(path.clone(), seed(), db_key(), 1).unwrap();
+        let engine = Engine::open(path.clone(), seed(), device_seed(), db_key(), 1).unwrap();
         engine
             .create_group("Trip".into(), vec![], "USD".into())
             .unwrap()
     };
 
-    let reopened = Engine::open(path, seed(), db_key(), 1).unwrap();
+    let reopened = Engine::open(path, seed(), device_seed(), db_key(), 1).unwrap();
     assert!(reopened.group_detail(group).is_some());
 }

@@ -28,6 +28,10 @@ fn site_key(site: u64) -> SigningKey {
     SigningKey::from_seed([site as u8; 32])
 }
 
+fn site_pub(site: u64) -> PublicKey {
+    site_key(site).public()
+}
+
 fn participants(mask: &[bool]) -> Vec<UserId> {
     let mut users: Vec<UserId> = mask
         .iter()
@@ -134,6 +138,18 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
         (0u8..6, any::<bool>()).prop_map(|(e, locked)| OpKind::SetExpenseLock {
             expense: expense(e),
             locked
+        }),
+        // Device authorize/revoke (#16). identity = site 0 so some of these are
+        // self-signed (honoured) and the rest exercise the ignore path — both
+        // must fold order-independently.
+        (1u64..3, 0u64..3).prop_map(|(dev, site)| OpKind::AuthorizeDevice {
+            identity: site_pub(0),
+            device: site_pub(dev),
+            site,
+        }),
+        (1u64..3).prop_map(|dev| OpKind::RevokeDevice {
+            identity: site_pub(0),
+            device: site_pub(dev),
         }),
     ]
 }

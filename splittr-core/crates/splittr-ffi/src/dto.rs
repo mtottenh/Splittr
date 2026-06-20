@@ -138,3 +138,12 @@ pub struct ActivityEntryDto {
     pub summary: String,
     pub wall_ms: i64,
 }
+
+/// A device authorized for the local identity (#16).
+pub struct DeviceViewDto {
+    /// The device public key, hex-encoded.
+    pub device: String,
+    pub site: u64,
+    pub revoked: bool,
+    pub this_device: bool,
+}

@@ -68,6 +68,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OriginalAmountDto dco_decode_box_autoadd_original_amount_dto(dynamic raw);
 
   @protected
+  DeviceViewDto dco_decode_device_view_dto(dynamic raw);
+
+  @protected
   ExpenseInput dco_decode_expense_input(dynamic raw);
 
   @protected
@@ -93,6 +96,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ActivityEntryDto> dco_decode_list_activity_entry_dto(dynamic raw);
+
+  @protected
+  List<DeviceViewDto> dco_decode_list_device_view_dto(dynamic raw);
 
   @protected
   List<ExpenseViewDto> dco_decode_list_expense_view_dto(dynamic raw);
@@ -231,6 +237,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DeviceViewDto sse_decode_device_view_dto(SseDeserializer deserializer);
+
+  @protected
   ExpenseInput sse_decode_expense_input(SseDeserializer deserializer);
 
   @protected
@@ -256,6 +265,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ActivityEntryDto> sse_decode_list_activity_entry_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DeviceViewDto> sse_decode_list_device_view_dto(
     SseDeserializer deserializer,
   );
 
@@ -432,6 +446,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_device_view_dto(DeviceViewDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_expense_input(ExpenseInput self, SseSerializer serializer);
 
   @protected
@@ -473,6 +490,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_activity_entry_dto(
     List<ActivityEntryDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_device_view_dto(
+    List<DeviceViewDto> self,
     SseSerializer serializer,
   );
 

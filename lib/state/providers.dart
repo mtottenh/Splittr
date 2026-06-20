@@ -2,7 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/exchange_rate_service.dart';
 import '../src/rust/api.dart';
-import '../src/rust/api.dart' as ffi show convertCurrency, currencyMinorUnits;
+import '../src/rust/api.dart' as ffi
+    show convertCurrency, currencyMinorUnits, recoveryPhrase;
 import '../src/rust/dto.dart';
 import 'app_data.dart';
 import 'engine.dart';
@@ -139,6 +140,12 @@ class AppNotifier extends AsyncNotifier<AppData> {
 
   Future<void> deleteSettlement(String settlementId) =>
       _mutate((e) => e.deleteSettlement(settlementId: settlementId));
+
+  Future<void> authorizeDevice(String deviceHex, int site) => _mutate(
+      (e) => e.authorizeDevice(deviceHex: deviceHex, site: BigInt.from(site)));
+
+  Future<void> revokeDevice(String deviceHex) =>
+      _mutate((e) => e.revokeDevice(deviceHex: deviceHex));
 }
 
 /// Detail for a single group. Re-fetches whenever [appProvider] changes (i.e.
@@ -156,4 +163,18 @@ final friendDetailProvider =
   ref.watch(appProvider);
   final engine = await ref.watch(engineProvider.future);
   return engine.friendDetail(userId: userId);
+});
+
+/// Devices authorized for this identity (#16), refreshed after mutations.
+final deviceListProvider = FutureProvider<List<DeviceViewDto>>((ref) async {
+  ref.watch(appProvider);
+  final engine = await ref.watch(engineProvider.future);
+  return engine.listDevices();
+});
+
+/// The BIP39 recovery phrase for the local identity (#34).
+final recoveryPhraseProvider = FutureProvider<String>((ref) async {
+  await ref.watch(engineProvider.future); // ensure the FFI is initialised
+  final seed = await ref.watch(identitySeedProvider.future);
+  return ffi.recoveryPhrase(identitySeed: seed);
 });

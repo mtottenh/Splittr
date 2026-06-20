@@ -7,7 +7,7 @@ import 'dto.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `lock`, `seed32`
+// These functions are ignored because they are not marked as `pub`: `hex32`, `lock`, `parse_hex32`, `seed32`
 
 /// Convert `amount_cents` from `from_currency` to `to_currency` at `rate_micro`
 /// (target units per source unit, ×1e6). Integer-safe; the money math lives in
@@ -29,6 +29,14 @@ Future<PlatformInt64> convertCurrency({
 Future<int> currencyMinorUnits({required String code}) =>
     RustLib.instance.api.crateApiCurrencyMinorUnits(code: code);
 
+/// The BIP39 recovery phrase for a 32-byte identity seed (#34).
+Future<String> recoveryPhrase({required List<int> identitySeed}) =>
+    RustLib.instance.api.crateApiRecoveryPhrase(identitySeed: identitySeed);
+
+/// Re-derive the 32-byte identity seed from a recovery phrase (#34).
+Future<Uint8List> seedFromRecoveryPhrase({required String phrase}) =>
+    RustLib.instance.api.crateApiSeedFromRecoveryPhrase(phrase: phrase);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Engine>>
 abstract class Engine implements RustOpaqueInterface {
   Future<List<ActivityEntryDto>> activity();
@@ -38,6 +46,12 @@ abstract class Engine implements RustOpaqueInterface {
   Future<void> addMember({required String groupId, required String userId});
 
   Future<String> addPerson({required String name});
+
+  /// Authorize another device (hex public key) to act for this identity.
+  Future<void> authorizeDevice({
+    required String deviceHex,
+    required BigInt site,
+  });
 
   Future<String> createGroup({
     required String name,
@@ -64,10 +78,15 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<List<GroupSummaryDto>> groups();
 
+  Future<List<DeviceViewDto>> listDevices();
+
   Future<void> lockExpense({required String expenseId});
 
   /// The local user's X25519 agreement public key as hex (#6/#14).
   Future<String> myAgreementPublic();
+
+  /// This device's public key (hex) — share it to enrol from another device.
+  Future<String> myDevicePublic();
 
   Future<String?> myName();
 
@@ -82,11 +101,13 @@ abstract class Engine implements RustOpaqueInterface {
   static Future<Engine> open({
     required String dbPath,
     required List<int> identitySeed,
+    required List<int> deviceSeed,
     required List<int> dbKey,
     required BigInt site,
   }) => RustLib.instance.api.crateApiEngineOpen(
     dbPath: dbPath,
     identitySeed: identitySeed,
+    deviceSeed: deviceSeed,
     dbKey: dbKey,
     site: site,
   );
@@ -115,6 +136,9 @@ abstract class Engine implements RustOpaqueInterface {
   Future<void> removeMember({required String groupId, required String userId});
 
   Future<void> renameGroup({required String groupId, required String name});
+
+  /// Revoke a device (hex public key).
+  Future<void> revokeDevice({required String deviceHex});
 
   /// Close a group's accounting period (#15): expenses dated at or before
   /// `until_ms` become uneditable. Pass `0` to reopen.

@@ -1,20 +1,26 @@
 //! Folding the op-log into a [`Projection`].
 //!
-//! [`Materializer`] is the single source of truth for *how* ops become state:
-//! it applies ops incrementally (idempotently, deduped by id) and produces a
-//! projection on demand. [`project`] is a thin convenience wrapper over it, so
-//! batch and incremental paths share one implementation (DRY) and cannot drift.
+//! The fold is a **pure function of the op-set**: [`Materializer`] simply retains
+//! the ops it is given (deduped by id) and [`Materializer::projection`] folds
+//! them on demand, so batch ([`project`]) and incremental paths run identical
+//! logic and cannot drift (DRY). Folding from the whole set (rather than
+//! collapsing incrementally) is what lets **device revocation** (#16/ADR-0005)
+//! be applied order-independently: a normal op is counted only if its author
+//! device is not revoked as of that op's HLC.
 //!
 //! Every "last write wins" decision goes through one [`lww`] over a [`Stamped`]
 //! value, so the conflict policy lives in exactly one place.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use splittr_crypto::PublicKey;
 use splittr_domain::{Cents, ExpenseFields, ExpenseId, GroupId, SettlementId, UserId};
 
 use crate::clock::Hlc;
 use crate::op::{Op, OpId, OpKind};
-use crate::projection::{ExpenseRecord, GroupRecord, Projection, SettlementRecord, UserRecord};
+use crate::projection::{
+    DeviceRecord, ExpenseRecord, GroupRecord, Projection, SettlementRecord, UserRecord,
+};
 
 /// A value tagged with the HLC at which it was written.
 struct Stamped<V> {
@@ -33,19 +39,100 @@ fn lww<K: Ord, V>(map: &mut BTreeMap<K, Stamped<V>>, key: K, incoming: Stamped<V
     }
 }
 
-struct SettlementData {
-    group: Option<GroupId>,
-    from: UserId,
-    to: UserId,
-    amount: Cents,
+fn stamp<V>(hlc: Hlc, value: V) -> Stamped<V> {
+    Stamped { hlc, value }
 }
 
-/// Accumulates ops into the state needed to produce a [`Projection`]. Applying
-/// ops in any order, with any duplication, yields the same result (ADR-0001).
+/// Retains the op-set (deduped by content id) and folds it on demand.
 #[derive(Default)]
 pub struct Materializer {
-    /// Op ids already applied — makes [`Materializer::apply`] idempotent.
-    seen: BTreeSet<OpId>,
+    ops: BTreeMap<OpId, Op>,
+}
+
+impl Materializer {
+    /// Record an op. Idempotent: re-applying an already-seen op is a no-op.
+    pub fn apply(&mut self, op: &Op) {
+        self.ops.entry(op.id).or_insert_with(|| op.clone());
+    }
+
+    /// Record many ops.
+    pub fn apply_all<'a>(&mut self, ops: impl IntoIterator<Item = &'a Op>) {
+        for op in ops {
+            self.apply(op);
+        }
+    }
+
+    /// Fold the retained ops into the read model.
+    pub fn projection(&self) -> Projection {
+        fold(self.ops.values())
+    }
+}
+
+/// Fold an op-log into the read model. Order-independent and idempotent.
+pub fn project(ops: &[Op]) -> Projection {
+    fold(ops.iter())
+}
+
+/// Device authorization extracted from the op-set (#16/ADR-0005).
+#[derive(Default)]
+struct Devices {
+    /// device pubkey → (hlc, identity, site) of the winning authorization.
+    /// Keyed LWW so conflicting authorizations resolve deterministically.
+    authorized: BTreeMap<PublicKey, (Hlc, PublicKey, u64)>,
+    /// device pubkey → earliest revocation HLC.
+    revoked: BTreeMap<PublicKey, Hlc>,
+}
+
+impl Devices {
+    /// A normal op counts unless its author device is revoked as of its HLC.
+    fn op_authorized(&self, op: &Op) -> bool {
+        match self.revoked.get(&op.author) {
+            Some(revoke_hlc) => op.hlc < *revoke_hlc,
+            None => true,
+        }
+    }
+}
+
+/// First pass: build the device-authorization view from the op-set. Device
+/// authorize/revoke ops are honoured only when self-signed by the identity
+/// (`op.author == identity`) — root-only enrolment.
+fn collect_devices<'a>(ops: impl Iterator<Item = &'a Op>) -> Devices {
+    let mut d = Devices::default();
+    for op in ops {
+        match &op.kind {
+            OpKind::AuthorizeDevice {
+                identity,
+                device,
+                site,
+            } if op.author == *identity => {
+                let cand = (op.hlc, *identity, *site);
+                match d.authorized.get(device) {
+                    Some(existing) if *existing >= cand => {}
+                    _ => {
+                        d.authorized.insert(*device, cand);
+                    }
+                }
+            }
+            OpKind::RevokeDevice { identity, device } if op.author == *identity => {
+                // Earliest revocation wins as the cutoff (terminal).
+                d.revoked
+                    .entry(*device)
+                    .and_modify(|h| {
+                        if op.hlc < *h {
+                            *h = op.hlc;
+                        }
+                    })
+                    .or_insert(op.hlc);
+            }
+            _ => {}
+        }
+    }
+    d
+}
+
+/// The accumulator for a single fold pass over the authorized op-set.
+#[derive(Default)]
+struct Folder {
     group_created: BTreeSet<GroupId>,
     group_name: BTreeMap<GroupId, Stamped<String>>,
     group_currency: BTreeMap<GroupId, Stamped<String>>,
@@ -56,8 +143,6 @@ pub struct Materializer {
     expense_group: BTreeMap<ExpenseId, Stamped<Option<GroupId>>>,
     expense_version: BTreeMap<ExpenseId, Stamped<ExpenseFields>>,
     expense_locked: BTreeMap<ExpenseId, Stamped<bool>>,
-    /// Grow-only set: an expense is published once any publish signal arrives
-    /// (an active create or a `PublishExpense`). Order-independent.
     expense_published: BTreeSet<ExpenseId>,
     expense_voided: BTreeSet<ExpenseId>,
     settlements: BTreeMap<SettlementId, Stamped<SettlementData>>,
@@ -65,12 +150,15 @@ pub struct Materializer {
     alias_edges: Vec<(UserId, UserId)>,
 }
 
-impl Materializer {
-    /// Apply a single op. Idempotent: re-applying an already-seen op is a no-op.
-    pub fn apply(&mut self, op: &Op) {
-        if !self.seen.insert(op.id) {
-            return;
-        }
+struct SettlementData {
+    group: Option<GroupId>,
+    from: UserId,
+    to: UserId,
+    amount: Cents,
+}
+
+impl Folder {
+    fn apply(&mut self, op: &Op) {
         let hlc = op.hlc;
         match &op.kind {
             OpKind::CreateGroup { group, name } => {
@@ -186,18 +274,12 @@ impl Materializer {
             OpKind::SetAgreementKey { user, key } => {
                 lww(&mut self.agreement_keys, user.clone(), stamp(hlc, *key));
             }
+            // Device authorize/revoke are handled in `collect_devices`.
+            OpKind::AuthorizeDevice { .. } | OpKind::RevokeDevice { .. } => {}
         }
     }
 
-    /// Apply many ops.
-    pub fn apply_all<'a>(&mut self, ops: impl IntoIterator<Item = &'a Op>) {
-        for op in ops {
-            self.apply(op);
-        }
-    }
-
-    /// Produce the read model from the accumulated state.
-    pub fn projection(&self) -> Projection {
+    fn assemble(self, devices: Devices) -> Projection {
         let aliases = resolve_aliases(&self.alias_edges);
 
         let mut groups = BTreeMap::new();
@@ -279,25 +361,42 @@ impl Materializer {
             );
         }
 
+        let devices = devices
+            .authorized
+            .iter()
+            .map(|(device, (_hlc, identity, site))| {
+                (
+                    *device,
+                    DeviceRecord {
+                        identity: *identity,
+                        site: *site,
+                        revoked: devices.revoked.contains_key(device),
+                    },
+                )
+            })
+            .collect();
+
         Projection {
             groups,
             users,
             expenses,
             settlements,
             aliases,
+            devices,
         }
     }
 }
 
-/// Fold an op-log into the read model. Order-independent and idempotent.
-pub fn project(ops: &[Op]) -> Projection {
-    let mut materializer = Materializer::default();
-    materializer.apply_all(ops);
-    materializer.projection()
-}
-
-fn stamp<V>(hlc: Hlc, value: V) -> Stamped<V> {
-    Stamped { hlc, value }
+/// The shared fold: resolve device authorization, then apply the authorized ops.
+fn fold<'a>(ops: impl Iterator<Item = &'a Op> + Clone) -> Projection {
+    let devices = collect_devices(ops.clone());
+    let mut folder = Folder::default();
+    for op in ops {
+        if devices.op_authorized(op) {
+            folder.apply(op);
+        }
+    }
+    folder.assemble(devices)
 }
 
 /// Resolve alias edges to a canonical id per connected component. The canonical
