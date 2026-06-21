@@ -73,8 +73,8 @@ flowchart TB
 | Crate / layer | Responsibility | Key deps / seams | Issues |
 |---|---|---|---|
 | `splittr-domain` (Rust) | Value types (`Cents`, ids), split/balance/debt math, expense model | `serde`; pure, no I/O | #2, #3, #15, #19 |
-| `splittr-crdt` (Rust) | `Op`, `Hlc`, content-addressed ids, conflict resolution, projection fold | `splittr-domain`, `serde`, `postcard`, `blake3` | #1, #8, #15, #19 |
-| `splittr-crypto` (Rust) | Identity/device keypairs, signing/verify, AEAD at-rest, recovery phrase, root vault, pairing SAS | `ed25519-dalek`, `x25519-dalek`, `chacha20poly1305`, `argon2`, `bip39`, `blake3` | #6, #14, #16, #22, #34, #35 |
+| `splittr-crdt` (Rust) | `Op`, `Hlc`, content-addressed ids, conflict resolution, `authorize` (entitlement) + `materialize` (value fold) | `splittr-domain`, `serde`, `postcard`, `blake3` | #1, #7, #8, #15, #19, #38 |
+| `splittr-crypto` (Rust) | Identity/device keypairs, signing/verify, AEAD at-rest, recovery phrase, root vault, pairing SAS, invite tokens | `ed25519-dalek`, `x25519-dalek`, `chacha20poly1305`, `argon2`, `bip39`, `blake3` | #6, #7, #14, #16, #22, #34, #35 |
 | `splittr-store` (Rust) | Persist op-log + materialized projection; encryption at rest | trait `Store`; `rusqlite`/`redb` | #1, #22 |
 | `splittr-sync` (Rust) | Discovery, transport, set reconciliation, blob transfer | trait `Transport`; `iroh`, `iroh-gossip`, `iroh-blobs` | #9, #20 |
 | `splittr-app` (Rust) | Use-cases: command handling, authorization, query/subscription | composes the above | #19, #23 |
@@ -138,15 +138,25 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   order-independently. An uncertified key acts as its own identity (self-sovereign
   default; the first device self-enrols).
 - **Authorization & entitlement** (#38, ADR-0006): an `Authority` pass over the
-  whole op-set (before the value fold) resolves each op's author → identity →
-  canonical user id, and gates the op on entitlement: a group's **founder** (its
-  creator) seeds a **time-sliced membership** timeline (any member as of an op may
-  add/remove members; a removal only affects later ops). Group ops require the
-  actor be a member as of the op; non-group friend ops require the actor be a
-  participant; profile/key ops require the subject; `AddAlias` (#8) requires a
-  party to the merge. Pure and order-independent, so it converges — this is the
-  gate that unblocks sync (#14/#20). Remaining hardening (admin roles, friend-edge
-  gating for non-group, invite-capability membership) is tracked on #38/#7/#8.
+  whole op-set (in `splittr-crdt::authorize`, before the value fold in
+  `materialize`) resolves each op's author → identity → canonical user id, and
+  gates the op on entitlement: a group's **founder** (its creator) seeds a
+  **time-sliced membership** timeline (any member as of an op may add/remove
+  members; a removal only affects later ops). Group ops require the actor be a
+  member as of the op; non-group friend ops require the actor be a participant
+  **and** share a mutual **friend edge** with every other real party (#38b);
+  profile/key ops require the subject; `AddAlias` (#8) requires a party to the
+  merge. Pure and order-independent, so it converges — this is the gate that
+  unblocks sync (#14/#20). Remaining hardening (admin/founder roles, friendship
+  revocation) is tracked on #38/#7.
+- **Friendship & invites** (#7, ADR-0006): `DeclareFriend{other}` is self-signed
+  one-way intent; a **mutual** pair forms a friend edge (`Projection.friends`)
+  that gates non-group friend expenses (above). A signed, expiring **invite token**
+  (`splittr-crypto::Invite`, `friend`/`group:<id>` context) is the out-of-band
+  trust artifact (link/QR) the shell shares; it is verified, not folded — the
+  engine exposes `create_friend_invite`/`create_group_invite`/`verify_invite`,
+  `add_friend` and `confirmed_friends`. Transport/peering (#9/#20) and the accept
+  UX remain.
 - **Root kept cold** (#34, ADR-0005): **done** — daily launches open the engine
   with the root **locked** (`Engine::open_device_only`): only the device key is
   loaded, so routine use never touches the root. Privileged actions (enrol/revoke)
@@ -243,7 +253,9 @@ degraded web client is acceptable.
 4. **Persistence + security:** `splittr-store` + at-rest encryption + app lock
    (#1, #22).
 5. **Identity:** #6, #16.
-6. **Transport:** iroh behind `Transport` (#20), then invites/claim (#7, #8).
+6. **Transport:** iroh behind `Transport` (#20). Invites/claim (#7, #8): the
+   engine (friend edges, signed invite tokens, claim/merge) is in place; the
+   remaining tail is peering/transport and the accept UX.
 7. **Value-add features** on the stable core (#3, #4, #5, #10, #11, #12, #13, #17).
 
 ## 13. Traceability
