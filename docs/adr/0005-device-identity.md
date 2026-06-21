@@ -36,7 +36,11 @@ recovery phrase (BIP39) ──derives──▶ Identity (root) key (Ed25519) = s
 - **Authenticity** (ingestion, `Op::verify`): the op's signature matches its `author`. Always checkable, order-independent. Forged ops rejected here. *Unchanged.*
 - **Revocation** (the fold, pure over the whole op-set): a normal op is counted **iff** its author device is not revoked **as of that op's HLC**. Computed from the `AuthorizeDevice`/`RevokeDevice` op-set, so it is order-independent and convergent. Ops authored *before* a device's revocation stay valid; ops *after* are dropped. A key with no device cert resolves to **itself** as identity, so existing single-key data keeps working (graceful, non-breaking).
 
-> **Scope note (corrected).** Only *authenticity* and *revocation* are enforced in the fold today. This layer does **not** yet enforce **entitlement** — that the author's identity is actually a *member* allowed to affect the touched group. Because anyone can self-certify a fresh key (`AuthorizeDevice{K, K}` signed by `K`), requiring "a cert" buys nothing without a real trust anchor; entitlement needs the invite/membership layer (#7/#8) and an out-of-band-established member set. It is therefore **deferred and must land before sync (#14/#20)** accepts foreign ops. Until then the engine trusts locally-produced ops. Tracked in **#38**. (Earlier drafts of this ADR said ops "count only while authorized," which overstated what the fold enforces; this note is the correction.)
+> **Scope note.** Authenticity and revocation are enforced here; **entitlement**
+> (only a member may affect a group) is now implemented in the same fold — see
+> **ADR-0006** (#38). Earlier drafts of this ADR said ops "count only while
+> authorized," which overstated what *this* layer enforces; the authorization
+> model lives in ADR-0006.
 
 ### Balances aggregate by identity
 The fold resolves `device → identity` (default: self) — the same shape as alias resolution. User ids stay the identity key's fingerprint (`id:<hex>`), unchanged.

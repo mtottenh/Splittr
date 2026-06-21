@@ -133,15 +133,20 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   doubles as the iroh `NodeId` (#6, ADR-0002).
 - **Devices** (#16, ADR-0005): each device has its own keypair + `site_id`; the
   identity (root) key signs `AuthorizeDevice` / `RevokeDevice` certs, normal ops
-  are signed by the device key. **Two checks are enforced today:** *authenticity*
-  at ingestion (`Op::verify`) and *device revocation* in the fold — a revoked
-  device's ops (as of their HLC) stop counting, order-independently. An
-  uncertified key acts as its own identity (the self-sovereign default; the first
-  device self-enrols), so single-device data stays backward compatible.
-  **Not yet enforced:** *entitlement* — restricting which identities may affect a
-  given group (member-gated authorization). Because an attacker can self-certify a
-  fresh key, real protection needs the invite/membership trust layer (#7/#8); it
-  must land **before** sync (#14/#20) accepts foreign ops. Tracked in **#38**.
+  are signed by the device key. The fold enforces *authenticity* (`Op::verify`)
+  and *device revocation* (a revoked device's ops, as of their HLC, stop counting),
+  order-independently. An uncertified key acts as its own identity (self-sovereign
+  default; the first device self-enrols).
+- **Authorization & entitlement** (#38, ADR-0006): an `Authority` pass over the
+  whole op-set (before the value fold) resolves each op's author → identity →
+  canonical user id, and gates the op on entitlement: a group's **founder** (its
+  creator) seeds a **time-sliced membership** timeline (any member as of an op may
+  add/remove members; a removal only affects later ops). Group ops require the
+  actor be a member as of the op; non-group friend ops require the actor be a
+  participant; profile/key ops require the subject; `AddAlias` (#8) requires a
+  party to the merge. Pure and order-independent, so it converges — this is the
+  gate that unblocks sync (#14/#20). Remaining hardening (admin roles, friend-edge
+  gating for non-group, invite-capability membership) is tracked on #38/#7/#8.
 - **Root kept cold** (#34, ADR-0005): **done** — daily launches open the engine
   with the root **locked** (`Engine::open_device_only`): only the device key is
   loaded, so routine use never touches the root. Privileged actions (enrol/revoke)
@@ -245,6 +250,7 @@ degraded web client is acceptable.
 
 - **Decisions:** ADR-0001 (core data model), ADR-0002 (transport: iroh),
   ADR-0003 (language: Rust core), ADR-0004 (identity & key hierarchy),
-  ADR-0005 (device identity & recovery). See `docs/adr/`.
+  ADR-0005 (device identity & recovery), ADR-0006 (authorization & entitlement).
+  See `docs/adr/`.
 - **Work:** Epic #18 holds the phased roadmap; the component-map table (§3) links
   each crate to its issues.

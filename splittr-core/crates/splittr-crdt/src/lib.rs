@@ -19,12 +19,14 @@
 
 mod balance;
 mod clock;
+mod identity;
 mod materialize;
 mod op;
 mod projection;
 
 pub use balance::{my_net_by_group, net_balances, pairwise_with, settle_up};
 pub use clock::{Hlc, SiteId};
+pub use identity::{hex32, is_placeholder, user_id_for};
 pub use materialize::{project, Materializer};
 pub use op::{Op, OpId, OpKind};
 pub use projection::{

@@ -11,7 +11,7 @@
 //! privileged actions (enrol/revoke a device) need it [`unlock`](Identity::unlock)ed.
 //! Secure storage of the seeds is a platform concern (#22/#34).
 
-use splittr_crdt::{AgreementKey, AgreementPublic, PublicKey, SigningKey, UserId};
+use splittr_crdt::{user_id_for, AgreementKey, AgreementPublic, PublicKey, SigningKey, UserId};
 
 /// The secret half of the identity, present only while the root is unlocked.
 struct RootSecret {
@@ -138,14 +138,4 @@ impl Identity {
 fn device_seed_from(mut seed: [u8; 32]) -> [u8; 32] {
     seed[0] ^= 0xff;
     seed
-}
-
-/// Derive a stable [`UserId`] from a public key — a real user's id *is* their
-/// key. Placeholder people (#2) get generated ids instead.
-pub fn user_id_for(public_key: &PublicKey) -> UserId {
-    let mut hex = String::with_capacity(64);
-    for byte in public_key.0 {
-        hex.push_str(&format!("{byte:02x}"));
-    }
-    UserId::new(format!("id:{hex}"))
 }

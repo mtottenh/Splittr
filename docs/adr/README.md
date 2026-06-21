@@ -12,6 +12,9 @@ see **[../ARCHITECTURE.md](../ARCHITECTURE.md)**.
 | [0001](0001-event-sourced-crdt-core.md) | Event-sourced, CRDT-convergent core data model | Accepted |
 | [0002](0002-networking-transport-rust-iroh.md) | Networking & transport: Rust interop via iroh | Accepted (transport); language split superseded by 0003 |
 | [0003](0003-core-language-rust-vs-dart.md) | Core implementation language: Rust-core vs Dart-core | Accepted |
+| [0004](0004-identity.md) | Identity & key hierarchy | Accepted |
+| [0005](0005-device-identity.md) | Device identity & recovery | Accepted |
+| [0006](0006-authorization-entitlement.md) | Fold-time authorization & entitlement | Accepted |
 
 Status values: **Proposed** (recommended, awaiting sign-off) · **Accepted**
 (decided) · **Superseded** (replaced by a later ADR).

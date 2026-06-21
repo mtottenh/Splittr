@@ -17,7 +17,7 @@ mod query;
 pub use app::{App, ExpenseDraft, ExpenseFieldsInput};
 pub use clock::HlcGenerator;
 pub use error::{AppError, Result};
-pub use identity::{user_id_for, Identity};
+pub use identity::Identity;
 pub use query::{
     ActivityEntry, DeviceView, ExpenseView, FriendBalance, FriendDetail, GroupDetail, GroupSummary,
     MemberAmount, MemberBalance, SettlementView,
@@ -25,8 +25,8 @@ pub use query::{
 
 // Convenience re-exports so callers/tests depend only on `splittr-app`.
 pub use splittr_crdt::{
-    convert, minor_units, open_seed, recovery_phrase, seal_seed, seed_from_phrase, Cents,
-    ExpenseId, GroupId, OriginalAmount, PairingTranscript, PublicKey, SettlementId, SigningKey,
-    SiteId, SplitPlan, Transfer, UserId,
+    convert, is_placeholder, minor_units, open_seed, recovery_phrase, seal_seed, seed_from_phrase,
+    user_id_for, Cents, ExpenseId, GroupId, OriginalAmount, PairingTranscript, PublicKey,
+    SettlementId, SigningKey, SiteId, SplitPlan, Transfer, UserId,
 };
 pub use splittr_store::{MemoryOpStore, OpStore, RedbOpStore, Repository};

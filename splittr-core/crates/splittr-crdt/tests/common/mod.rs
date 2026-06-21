@@ -1,5 +1,13 @@
 //! Shared proptest generators for the integration tests (kept in one place so
 //! the convergence and materializer suites don't duplicate them).
+//!
+//! Under entitlement (#38) an op only folds if its author is entitled, so the
+//! generator models a real authorized world: a few **identities** (each a
+//! signing key, its user id derived from its public key), a deterministic
+//! **setup** that founds a group and admits them, then random member-authored
+//! ops over a small fixed universe — plus some ops by an *outsider* identity and
+//! some forged device certs, so both the authorized and the dropped paths are
+//! exercised. Convergence (same op-set ⇒ same projection) must hold regardless.
 
 #![allow(dead_code)] // not every test binary uses every helper
 
@@ -8,11 +16,6 @@ use std::collections::BTreeMap;
 use proptest::prelude::*;
 use splittr_crdt::*;
 
-// A small fixed universe keeps op ids colliding on the same entities, which is
-// what actually exercises the conflict rules.
-pub fn user(i: u8) -> UserId {
-    UserId::new(format!("u{i}"))
-}
 pub fn group(i: u8) -> GroupId {
     GroupId::new(format!("g{i}"))
 }
@@ -32,15 +35,36 @@ fn site_pub(site: u64) -> PublicKey {
     site_key(site).public()
 }
 
+/// The user id for an identity site (its key's public id). Sites 0..=2 are set
+/// up as group members; site 3 is an unauthorized outsider.
+pub fn member(site: u64) -> UserId {
+    user_id_for(&site_pub(site))
+}
+
+fn placeholder() -> UserId {
+    UserId::new("user:guest".to_string())
+}
+
+/// The people referenced in expense/membership ops: three real members plus a
+/// placeholder guest (#2).
+fn person(i: u8) -> UserId {
+    match i % 4 {
+        0 => member(0),
+        1 => member(1),
+        2 => member(2),
+        _ => placeholder(),
+    }
+}
+
 fn participants(mask: &[bool]) -> Vec<UserId> {
     let mut users: Vec<UserId> = mask
         .iter()
         .enumerate()
         .filter(|(_, b)| **b)
-        .map(|(i, _)| user(i as u8))
+        .map(|(i, _)| person(i as u8))
         .collect();
     if users.is_empty() {
-        users.push(user(0));
+        users.push(person(0));
     }
     users
 }
@@ -49,8 +73,7 @@ fn valid_splits(total: i64, mask: &[bool]) -> Vec<Split> {
     split_equal(Cents(total), &participants(mask))
 }
 
-/// A balanced expense version: payments and splits both sum to `total`, with
-/// payments distributed across the masked payers (so multi-payer is exercised).
+/// A balanced expense version: payments and splits both sum to `total`.
 fn fields(total: i64, payer_mask: &[bool], split_mask: &[bool]) -> ExpenseFields {
     let payers = participants(payer_mask);
     let paid_by: BTreeMap<UserId, Cents> = split_equal(Cents(total), &payers)
@@ -62,17 +85,13 @@ fn fields(total: i64, payer_mask: &[bool], split_mask: &[bool]) -> ExpenseFields
 
 pub fn op_kind() -> impl Strategy<Value = OpKind> {
     prop_oneof![
-        (0u8..2).prop_map(|g| OpKind::CreateGroup {
-            group: group(g),
-            name: format!("group{g}")
-        }),
         (0u8..2, 0u8..3).prop_map(|(g, n)| OpKind::SetGroupName {
             group: group(g),
             name: format!("name{n}")
         }),
         (0u8..2, 0u8..4, any::<bool>()).prop_map(|(g, u, m)| OpKind::SetMembership {
             group: group(g),
-            user: user(u),
+            user: person(u),
             member: m
         }),
         (
@@ -115,33 +134,33 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
             OpKind::RecordSettlement {
                 settlement: settlement(s),
                 group: Some(group(g)),
-                from: user(from),
-                to: user(to),
+                from: person(from),
+                to: person(to),
                 amount: Cents(amount),
             }
         }),
         (0u8..4).prop_map(|s| OpKind::VoidSettlement {
             settlement: settlement(s)
         }),
-        (0u8..4, 0u8..4).prop_map(|(a, b)| OpKind::AddAlias {
-            alias: user(a),
-            canonical: user(b)
+        // Claim the placeholder guest as a real member (canonical = a member).
+        (0u8..3).prop_map(|m| OpKind::AddAlias {
+            alias: placeholder(),
+            canonical: member(m as u64),
         }),
         (0u8..4, 0u8..3).prop_map(|(u, n)| OpKind::UpsertProfile {
-            user: user(u),
+            user: person(u),
             name: format!("name{n}")
         }),
         (0u8..4, any::<u8>()).prop_map(|(u, k)| OpKind::SetAgreementKey {
-            user: user(u),
+            user: person(u),
             key: [k; 32],
         }),
         (0u8..6, any::<bool>()).prop_map(|(e, locked)| OpKind::SetExpenseLock {
             expense: expense(e),
             locked
         }),
-        // Device authorize/revoke (#16). identity = site 0 so some of these are
-        // self-signed (honoured) and the rest exercise the ignore path — both
-        // must fold order-independently.
+        // Device authorize/revoke (#16): identity = site 0, so only the ops also
+        // authored by site 0 are honoured and the rest exercise the ignore path.
         (1u64..3, 0u64..3).prop_map(|(dev, site)| OpKind::AuthorizeDevice {
             identity: site_pub(0),
             device: site_pub(dev),
@@ -154,23 +173,67 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
     ]
 }
 
-/// A log of ops. Each gets a unique HLC counter (so all op ids are unique), with
-/// a randomised wall time + site so HLC order is deliberately *not* aligned with
-/// position — proving the fold uses the HLC, not arrival order.
+/// The deterministic authorized setup prepended to every log: site 0 founds g0
+/// and admits sites 1, 2 and the guest; site 1 founds g1 and admits sites 0, 2.
+/// Pairs are `(kind, author_site)`.
+fn setup() -> Vec<(OpKind, u64)> {
+    vec![
+        (
+            OpKind::CreateGroup {
+                group: group(0),
+                name: "g0".into(),
+            },
+            0,
+        ),
+        (membership(0, member(1)), 0),
+        (membership(0, member(2)), 0),
+        (membership(0, placeholder()), 0),
+        (
+            OpKind::CreateGroup {
+                group: group(1),
+                name: "g1".into(),
+            },
+            1,
+        ),
+        (membership(1, member(0)), 1),
+        (membership(1, member(2)), 1),
+    ]
+}
+
+fn membership(g: u8, user: UserId) -> OpKind {
+    OpKind::SetMembership {
+        group: group(g),
+        user,
+        member: true,
+    }
+}
+
+/// A log of ops: the authorized setup, then random ops authored by varying
+/// identities (site 3 is an outsider whose ops drop). Each op gets a unique HLC
+/// counter (so ids are unique) with a randomised wall time + HLC site, so HLC
+/// order is deliberately *not* aligned with position.
 pub fn op_log() -> impl Strategy<Value = Vec<Op>> {
-    prop::collection::vec((op_kind(), 0u64..5, 0u64..3), 0..40).prop_map(|specs| {
-        specs
+    // (kind, author_site 0..4, wall, hlc_site)
+    prop::collection::vec((op_kind(), 0u64..4, 0u64..5, 0u64..3), 0..40).prop_map(|specs| {
+        let mut counter = 0u32;
+        let mut sign = |kind: OpKind, author: u64, wall: u64, hlc_site: u64| {
+            let hlc = Hlc {
+                wall_ms: wall,
+                counter,
+                site: SiteId(hlc_site),
+            };
+            counter += 1;
+            Op::signed(hlc, &site_key(author), kind)
+        };
+
+        let mut ops: Vec<Op> = setup()
             .into_iter()
-            .enumerate()
-            .map(|(i, (kind, wall, site))| {
-                let hlc = Hlc {
-                    wall_ms: wall,
-                    counter: i as u32,
-                    site: SiteId(site),
-                };
-                Op::signed(hlc, &site_key(site), kind)
-            })
-            .collect()
+            .map(|(kind, author)| sign(kind, author, 0, author))
+            .collect();
+        for (kind, author, wall, hlc_site) in specs {
+            ops.push(sign(kind, author, wall, hlc_site));
+        }
+        ops
     })
 }
 
