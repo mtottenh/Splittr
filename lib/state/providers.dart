@@ -1,9 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/exchange_rate_service.dart';
 import '../src/rust/api.dart';
 import '../src/rust/api.dart' as ffi
-    show convertCurrency, currencyMinorUnits, recoveryPhrase;
+    show convertCurrency, currencyMinorUnits, recoveryPhrase, verifyInvite;
 import '../src/rust/dto.dart';
 import 'app_data.dart';
 import 'engine.dart';
@@ -98,6 +100,51 @@ class AppNotifier extends AsyncNotifier<AppData> {
 
   Future<void> addMember(String groupId, String userId) =>
       _mutate((e) => e.addMember(groupId: groupId, userId: userId));
+
+  // --- invites & friendship (#7) ----------------------------------------
+
+  /// How long a freshly generated invite stays valid.
+  static const inviteTtl = Duration(days: 7);
+
+  /// A signed friend-invite blob (#7). Signing uses the identity (root) key, so
+  /// [rootSeed] is obtained via the root vault (PIN-prompted when app lock is
+  /// on); it is only in memory for the signing call.
+  Future<Uint8List> createFriendInvite({required List<int> rootSeed}) =>
+      _mutateWithRoot(
+          rootSeed, (e) => e.createFriendInvite(expiryMs: _inviteExpiry()));
+
+  /// A signed invite to join [groupId] (#7). Needs the root; see
+  /// [createFriendInvite].
+  Future<Uint8List> createGroupInvite(
+    String groupId, {
+    required List<int> rootSeed,
+  }) =>
+      _mutateWithRoot(rootSeed,
+          (e) => e.createGroupInvite(groupId: groupId, expiryMs: _inviteExpiry()));
+
+  BigInt _inviteExpiry() =>
+      BigInt.from(DateTime.now().add(inviteTtl).millisecondsSinceEpoch);
+
+  /// Decode + verify an invite blob for preview before accepting (#7).
+  /// Non-mutating; `null` if the blob is malformed.
+  Future<InviteDto?> previewInvite(List<int> invite) async {
+    await ref.read(engineProvider.future); // ensure the FFI is initialised
+    return ffi.verifyInvite(
+      invite: invite,
+      nowMs: BigInt.from(DateTime.now().millisecondsSinceEpoch),
+    );
+  }
+
+  /// Declare friendship toward [userId] (#7); the edge is confirmed once they
+  /// declare back. Signed by the device key, so no root unlock is needed.
+  Future<void> addFriend(String userId) =>
+      _mutate((e) => e.addFriend(userId: userId));
+
+  /// This identity's confirmed (mutual) friends (#7). Non-mutating.
+  Future<List<String>> confirmedFriends() async {
+    final engine = await ref.read(engineProvider.future);
+    return engine.confirmedFriends();
+  }
 
   Future<String> addExpense(ExpenseInput input) =>
       _mutate((e) => e.addExpense(input: input));

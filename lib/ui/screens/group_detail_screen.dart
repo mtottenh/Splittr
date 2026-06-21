@@ -9,6 +9,7 @@ import '../../state/providers.dart';
 import '../widgets/add_person_dialog.dart';
 import '../widgets/balance_label.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/invite_sheet.dart';
 import '../widgets/user_avatar.dart';
 import 'add_expense_screen.dart';
 import 'settle_up_screen.dart';
@@ -55,16 +56,19 @@ class _GroupDetail extends ConsumerWidget {
               onPressed: () => _addMember(context, ref),
             ),
             IconButton(
-              tooltip: 'Rename group',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _rename(context, ref),
+              tooltip: 'Invite to group',
+              icon: const Icon(Icons.qr_code),
+              onPressed: () => showGroupInvite(context, ref,
+                  groupId: group.id, groupName: group.name),
             ),
             PopupMenuButton<String>(
               onSelected: (v) {
+                if (v == 'rename') _rename(context, ref);
                 if (v == 'close') _closePeriod(context, ref);
                 if (v == 'reopen') _reopenPeriod(ref);
               },
               itemBuilder: (context) => const [
+                PopupMenuItem(value: 'rename', child: Text('Rename group…')),
                 PopupMenuItem(
                   value: 'close',
                   child: Text('Close period up to a date…'),

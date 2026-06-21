@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/providers.dart';
+import '../widgets/accept_invite_dialog.dart';
 import '../widgets/add_person_dialog.dart';
 import '../widgets/balance_label.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/invite_sheet.dart';
 import '../widgets/user_avatar.dart';
 import 'friend_detail_screen.dart';
 
@@ -21,9 +23,21 @@ class FriendsScreen extends ConsumerWidget {
         title: const Text('Friends'),
         actions: [
           IconButton(
-            tooltip: 'Add friend',
+            tooltip: 'Add a person',
             icon: const Icon(Icons.person_add),
             onPressed: () => showAddPersonDialog(context, ref),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Invites',
+            icon: const Icon(Icons.qr_code),
+            onSelected: (v) {
+              if (v == 'invite') showFriendInvite(context, ref);
+              if (v == 'accept') showAcceptInviteDialog(context, ref);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'invite', child: Text('Invite a friend…')),
+              PopupMenuItem(value: 'accept', child: Text('Accept an invite…')),
+            ],
           ),
         ],
       ),
