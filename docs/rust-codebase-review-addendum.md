@@ -9,6 +9,32 @@
 >
 > Severities continue the first report's scale (Critical / High / Medium / Low).
 
+## Re-review status — default branch `c80904e`
+
+> Verified against `claude/splitwise-cross-platform-css1my` (6 commits past the review
+> base). Determinism re-checked: **still healthy** — no `HashMap`/`HashSet` introduced
+> anywhere in the core.
+
+| § | Aspect | Status | Evidence |
+|---|--------|--------|----------|
+| **1** | Op wire-format versioning + golden-bytes test | ⬜ **Open** | `op.rs` untouched; no version byte, no format-pinning test. Most-recommended item still outstanding. |
+| **2b** | Mutex poisoning bricks the engine | ⬜ **Open** | `api.rs:331` still `.lock().expect("engine mutex poisoned")`. |
+| **2c** | CI doesn't verify codegen freshness | ⬜ **Open** | `ci.yml` unchanged; bindings *are* currently in sync, but no `--check` guard. |
+| **3a** | Dart money parsing hardcodes ×100 | ⬜ **Open** | `lib/core/money.dart:21` still `(value * 100).round()`, ignoring `currencyMinorUnits`. |
+| **3b** | FX request has no timeout | ⬜ **Open** | `exchange_rate_service.dart:45` still a bare `_client.get(uri)`. |
+| **4a** | File-fallback stores the **db key** in clear next to the db | 🟡 **Partial** | The *root seed* is now Argon2id-sealed under the PIN (see 4c), removing the worst exposure; the **db encryption key** is still keystore/file-plaintext and not PIN-sealed. |
+| **4b** | App-lock PIN uses a single-round SHA-256 | 🟡 **Partial** | The consequential path now runs through Argon2id (the PIN seals the root via `seal_root_seed`); the *lock-screen* hash in `app_lock.dart` is still SHA-256, but it now only gates the UI. |
+| **4c** | App-lock and vault are parallel, unwired mechanisms | ✅ **Fixed** | `773f5dc` (#34). New `lib/state/root_vault.dart` wires the PIN to `seal_root_seed`/`open_root_seed` (Argon2id+AEAD): seals on lock-on, drops plaintext, reseals on PIN change, unseals on lock-off. |
+| **5** | No observability/tracing | ⬜ **Open** | No `tracing`/`log` in the core. |
+| **6** | No `cargo-audit`/`cargo-deny`; no MSRV | ⬜ **Open** | CI/manifests unchanged. |
+| **7** | Determinism | ✅ **Healthy** (re-verified) | Still all `BTreeMap`/`BTreeSet`; no floats in the fold. |
+
+**Net:** the at-rest *root-seed* story is materially improved (4c fixed, 4a/4b de-risked
+via Argon2id sealing), and determinism remains sound. The wire-format hardening (§1) —
+the cheapest-now/most-expensive-later item — plus the FFI robustness (§2b/§2c),
+observability (§5), and supply-chain hygiene (§6) are all still open. The original
+sections below are **retained verbatim**.
+
 ## Contents
 1. Op-format schema evolution & wire-format stability — **High**
 2. FFI boundary: panics, mutex poisoning, codegen drift — **Medium**
@@ -273,20 +299,28 @@ exchanging signed ops over the wire.
 
 ## Consolidated priority across both documents
 
-**Settle before any sync/transport work:**
-1. Enforce-or-document device authorization (report **H1**).
-2. Freeze + version + golden-test the op wire format (**§1**).
-3. Version the at-rest/vault crypto blobs + pin Argon2 params (report **H3**).
+> Updated after the `c80904e` re-review. **Struck-through** items are now done:
+> ~~H1~~ (authorization enforced, #38), ~~H2~~ (projection cache + single-fold, #39/#44),
+> ~~M3~~ (#43), ~~M4~~, ~~§4c~~ (root vault, #34).
 
-**Quick wins:**
-4. Recover from mutex poisoning / non-panicking money arithmetic (**§2b** + report M2).
-5. Route Dart money parse/format through `minor_units` (**§3a** + report M5).
-6. Add `cargo-audit` and a codegen-`--check` step to CI (**§6**, **§2c**).
+**Settle before any sync/transport work (remaining):**
+1. Freeze + version + golden-test the op wire format (**§1**) — *still the top item.*
+2. Version the at-rest/vault crypto blobs + pin Argon2 params (report **H3**).
+3. Seal the **db key** (not just the root seed) under the app-lock so the keystore-less
+   file fallback stops defeating at-rest encryption (**§4a**, the part left after §4c).
 
-**Larger, do together:**
-7. Unify the app-lock + vault under one Argon2id KDF and give the lock cryptographic
-   control of the db key, fixing the keystore-less plaintext-key gap (**§4a/b/c**).
-8. Projection caching + single-fold queries (report **H2**) — the cost is amplified by the
-   shell, which re-snapshots (groups + friends + activity + per-detail providers) on every
-   single mutation, i.e. several full re-folds per user tap.
+**Quick wins (remaining):**
+4. Recover from mutex poisoning + non-panicking money arithmetic (**§2b** + report M2).
+5. Route Dart **and** Rust money parse/format through `minor_units` (**§3a** + report M5).
+6. `rate_micro` via `try_from` at the FFI edge (report M6); FX request timeout (**§3b**).
+7. Add `cargo-audit` and a codegen-`--check` step to CI; declare MSRV (**§6**, **§2c**).
+8. Type `Op::verify`'s failure (report M7); finish the `hex32` dedup (use `crdt::identity`).
+
+**Larger:**
 9. Adopt `tracing` at the use-case/trust boundaries ahead of the sync crate (**§5**).
+
+**Done since the original reports:** device authorization & entitlement enforced in the
+fold with a membership timeline and ADR-0006 (**H1**); projection memoized + single-fold
+group queries (**H2**, removing the per-tap re-fold storm in the shell); expense params
+struct (**M3**); O(1) op count (**M4**); root seed Argon2id-sealed under the app-lock PIN
+(**§4c**); plus a new claim/merge feature (#8).
