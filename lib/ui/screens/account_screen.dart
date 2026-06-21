@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/app_lock.dart';
+import '../../state/engine.dart';
 import '../../state/providers.dart';
 import '../../state/root_vault.dart';
 import '../root_access.dart';
@@ -188,18 +189,29 @@ class _AppLockTile extends ConsumerWidget {
     if (result == null || !context.mounted) return;
 
     final vault = await ref.read(rootVaultProvider.future);
+    final dbVault = await ref.read(dbKeyVaultProvider.future);
     if (isChange) {
-      // Re-key the vault under the new PIN; a wrong current PIN must not proceed.
+      // Re-key both vaults under the new PIN; a wrong current PIN must not
+      // proceed. The root result is authoritative (it's always sealed when
+      // locked); the db key re-key is best-effort (a no-op on keystore platforms).
       final ok =
           await vault.reseal(oldPin: result.oldPin!, newPin: result.newPin);
       if (!ok) {
         if (context.mounted) _toast(context, 'Current PIN is incorrect');
         return;
       }
+      await dbVault.reseal(oldPin: result.oldPin!, newPin: result.newPin);
       await ref.read(appLockProvider.notifier).setPin(result.newPin);
     } else {
       await ref.read(appLockProvider.notifier).setPin(result.newPin);
       await vault.seal(result.newPin);
+      // Seal the db key too and keep the unsealed copy so the running session
+      // keeps working without re-unlocking (§4a).
+      await dbVault.seal(result.newPin);
+      if (await dbVault.isSealed()) {
+        ref.read(unlockedDbKeyProvider.notifier).state =
+            await dbVault.load(pin: result.newPin);
+      }
     }
   }
 
@@ -211,6 +223,8 @@ class _AppLockTile extends ConsumerWidget {
       if (context.mounted) _toast(context, 'Incorrect PIN');
       return;
     }
+    // Restore the db key to plaintext too (turning the lock off).
+    await (await ref.read(dbKeyVaultProvider.future)).unseal(pin);
     await ref.read(appLockProvider.notifier).clearPin();
   }
 

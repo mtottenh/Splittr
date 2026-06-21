@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
+import 'engine.dart';
+
 /// Salted SHA-256 of a PIN. Pure (no I/O) so it is unit-testable; the salt makes
 /// the stored hash resistant to precomputation.
 String hashPin(String pin, String salt) =>
@@ -58,10 +60,25 @@ class AppLockController extends Notifier<AppLockState> {
       return true;
     }
     if (hashPin(pin, salt) == hash) {
+      // PIN verified — make the (possibly sealed) db key available before the
+      // shell builds and opens the engine (§4a).
+      await _prepareDbKey(pin);
       state = state.copyWith(status: LockStatus.unlocked);
       return true;
     }
     return false;
+  }
+
+  /// With the PIN known-correct: seal the db key under it if it isn't already
+  /// (migrating a keystore-less plaintext key), then hold the unsealed key in
+  /// memory for [engineProvider]. A no-op where a keystore protects the key.
+  Future<void> _prepareDbKey(String pin) async {
+    final vault = await ref.read(dbKeyVaultProvider.future);
+    await vault.seal(pin);
+    if (await vault.isSealed()) {
+      ref.read(unlockedDbKeyProvider.notifier).state =
+          await vault.load(pin: pin);
+    }
   }
 
   /// Attempt a biometric / device-credential unlock. Returns false (without

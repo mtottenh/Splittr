@@ -11,6 +11,7 @@ import '../src/rust/api.dart';
 import '../src/rust/api.dart' as ffi
     show recoveryPhrase, seedFromRecoveryPhrase;
 import '../src/rust/frb_generated.dart';
+import 'pin_sealed_key.dart';
 
 /// Keystore / fallback-file names for the local key material.
 const kIdentitySeed = ('splittr_identity_seed', 'identity.seed');
@@ -20,7 +21,17 @@ const kIdentitySeed = ('splittr_identity_seed', 'identity.seed');
 const kRootVault = ('splittr_root_vault', 'root.vault');
 const _kIdentityPublic = ('splittr_identity_public', 'identity.pub');
 const _kDeviceSeed = ('splittr_device_seed', 'device.seed');
-const _kDbKey = ('splittr_db_key', 'db.key');
+
+/// The op-log encryption key (#22). Stored plaintext when app lock is off; when
+/// app lock is on it is sealed under the PIN as [kDbVault] (on keystore-less
+/// platforms — see [PinSealedKey]).
+const kDbKey = ('splittr_db_key', 'db.key');
+const kDbVault = ('splittr_db_vault', 'db.vault');
+
+/// Holds the db key in memory after a PIN unlock, when the on-disk copy is
+/// sealed (keystore-less + app lock on). `null` means "not unlocked / not
+/// sealed"; the [engineProvider] reads it to open an otherwise-locked database.
+final unlockedDbKeyProvider = StateProvider<List<int>?>((ref) => null);
 
 /// Opens the Rust [Engine] exactly once for the app.
 ///
@@ -35,6 +46,21 @@ const _kDbKey = ('splittr_db_key', 'db.key');
 /// Shared so onboarding and the engine don't double-init the FFI.
 final rustInitProvider = FutureProvider<void>((ref) => RustLib.init());
 
+/// The PIN-sealable vault for the op-log encryption key (§4a). Skips sealing
+/// when a keystore is available (the OS protects the key there and a biometric
+/// unlock has no PIN); seals on keystore-less platforms where the file fallback
+/// would otherwise leave the key in clear next to the database.
+final dbKeyVaultProvider = FutureProvider<PinSealedKey>((ref) async {
+  await ref.watch(rustInitProvider.future);
+  final dir = await getApplicationSupportDirectory();
+  return PinSealedKey(
+    dir,
+    plainKey: kDbKey,
+    vaultKey: kDbVault,
+    skipWhenKeystore: true,
+  );
+});
+
 final engineProvider = FutureProvider<Engine>((ref) async {
   await ref.watch(rustInitProvider.future);
   final dir = await getApplicationSupportDirectory();
@@ -43,7 +69,25 @@ final engineProvider = FutureProvider<Engine>((ref) async {
   // The device seed (#16) and db key (#22) are always needed; the site (HLC
   // tiebreaker) is per-device, so derive it from the device seed.
   final deviceSeed = await secrets.loadOrCreate(_kDeviceSeed);
-  final dbKey = await secrets.loadOrCreate(_kDbKey);
+  // The db key may be sealed under the app-lock PIN (#22/§4a). When sealed, the
+  // unsealed key is handed in via [unlockedDbKeyProvider] at unlock; otherwise
+  // it's read (or created) from the keystore/file as usual.
+  final dbVault = PinSealedKey(
+    dir,
+    plainKey: kDbKey,
+    vaultKey: kDbVault,
+    skipWhenKeystore: true,
+  );
+  final List<int> dbKey;
+  if (await dbVault.isSealed()) {
+    final unlocked = ref.read(unlockedDbKeyProvider);
+    if (unlocked == null) {
+      throw StateError('the database key is locked — unlock with your PIN');
+    }
+    dbKey = unlocked;
+  } else {
+    dbKey = await dbVault.loadOrCreate();
+  }
   final site = _siteFromSeed(deviceSeed);
   final dbPath = '${dir.path}/splittr.redb';
 
@@ -84,6 +128,21 @@ class SecretStore {
   final FlutterSecureStorage _keystore = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
+
+  /// Whether an OS keystore/secret-service is actually usable on this platform.
+  /// Used to decide whether the db key needs PIN-sealing (keystore-less) or is
+  /// already protected by the OS (§4a).
+  Future<bool> hasKeystore() async {
+    const probe = 'splittr_keystore_probe';
+    try {
+      await _keystore.write(key: probe, value: '1');
+      final v = await _keystore.read(key: probe);
+      await _keystore.delete(key: probe);
+      return v == '1';
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Read a stored 32-byte value, or `null` if it has never been written.
   Future<List<int>?> read((String, String) key) async {
