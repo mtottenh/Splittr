@@ -330,6 +330,51 @@ fn invites_and_friend_declarations_through_the_ffi() {
 }
 
 #[test]
+fn convert_currency_rejects_a_negative_rate() {
+    // A wrapped `as u64` would turn -1 into a huge multiplier; reject it instead.
+    assert!(convert_currency(1000, -1, "USD".into(), "EUR".into()).is_err());
+    assert_eq!(
+        convert_currency(1000, 1_000_000, "USD".into(), "USD".into()).unwrap(),
+        1000
+    );
+}
+
+#[test]
+fn add_expense_rejects_a_negative_original_rate() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), device_seed(), db_key(), 1).unwrap();
+    engine.set_my_name("Me".into()).unwrap();
+    let me = engine.my_user_id();
+    let bob = engine.add_person("Bob".into()).unwrap();
+    let group = engine
+        .create_group("Trip".into(), vec![bob.clone()], "USD".into())
+        .unwrap();
+
+    let bad = ExpenseInput {
+        group_id: Some(group),
+        description: "Hotel".into(),
+        paid_by: vec![Payer {
+            user_id: me.clone(),
+            cents: 3000,
+        }],
+        total_cents: 3000,
+        split: SplitPlanDto::Equal {
+            participants: vec![me, bob],
+        },
+        category: "travel".into(),
+        notes: None,
+        date_ms: 0,
+        draft: false,
+        original: Some(OriginalAmountDto {
+            currency: "EUR".into(),
+            amount_cents: 3000,
+            rate_micro: -5, // negative — must be rejected, not wrapped
+        }),
+    };
+    assert!(engine.add_expense(bad).is_err());
+}
+
+#[test]
 fn rejects_a_malformed_seed() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Engine::open(db_path(&dir), vec![1, 2, 3], device_seed(), db_key(), 1).is_err());

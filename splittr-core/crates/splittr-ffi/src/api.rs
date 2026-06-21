@@ -219,7 +219,7 @@ impl Engine {
         let draft = ExpenseDraft {
             group: input.group_id.clone().map(GroupId::new),
             draft: input.draft,
-            fields: to_fields(input),
+            fields: to_fields(input)?,
         };
         Ok(self.lock().add_expense(draft)?.0)
     }
@@ -243,7 +243,7 @@ impl Engine {
     /// ignored (an expense cannot change groups, and edit preserves draft state).
     pub fn edit_expense(&self, expense_id: String, input: ExpenseInput) -> Result<()> {
         self.lock()
-            .edit_expense(&splittr_app::ExpenseId::new(expense_id), to_fields(input))?;
+            .edit_expense(&splittr_app::ExpenseId::new(expense_id), to_fields(input)?)?;
         Ok(())
     }
 
@@ -362,8 +362,13 @@ impl Engine {
 
     // --- internals ---------------------------------------------------------
 
+    /// Lock the engine. Recovers from a poisoned mutex (a panic in a prior
+    /// locked call) instead of propagating it — otherwise one panic would brick
+    /// the engine for the rest of the session, with the user's only copy of
+    /// their data behind the lock. FRB already turned that panic into a Dart
+    /// exception; the data the guard protects is still consistent.
     fn lock(&self) -> std::sync::MutexGuard<'_, App<RedbOpStore>> {
-        self.inner.lock().expect("engine mutex poisoned")
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -399,14 +404,14 @@ pub fn convert_currency(
     rate_micro: i64,
     from_currency: String,
     to_currency: String,
-) -> i64 {
-    splittr_app::convert(
+) -> Result<i64> {
+    Ok(splittr_app::convert(
         Cents(amount_cents),
-        rate_micro as u64,
+        crate::convert::rate_micro_u64(rate_micro)?,
         splittr_app::minor_units(&from_currency),
         splittr_app::minor_units(&to_currency),
     )
-    .0
+    .0)
 }
 
 /// The number of minor units (decimal places) for a currency code — for

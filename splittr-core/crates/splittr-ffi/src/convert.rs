@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use anyhow::{anyhow, Result};
 use splittr_app::{
     ActivityEntry, Cents, DeviceView, ExpenseFieldsInput, ExpenseView, FriendBalance, FriendDetail,
     GroupDetail, GroupSummary, MemberAmount, MemberBalance, OriginalAmount, SettlementView,
@@ -27,12 +28,22 @@ impl From<DeviceView> for DeviceViewDto {
 }
 
 /// FFI → domain conversion for the optional foreign-currency metadata (#3).
-pub(crate) fn to_original(dto: Option<OriginalAmountDto>) -> Option<OriginalAmount> {
-    dto.map(|o| OriginalAmount {
-        currency: o.currency,
-        amount: Cents(o.amount_cents),
-        rate_micro: o.rate_micro as u64,
+/// Rejects a negative `rate_micro` at the boundary instead of wrapping it to a
+/// huge magnitude via `as u64`.
+pub(crate) fn to_original(dto: Option<OriginalAmountDto>) -> Result<Option<OriginalAmount>> {
+    dto.map(|o| {
+        Ok(OriginalAmount {
+            currency: o.currency,
+            amount: Cents(o.amount_cents),
+            rate_micro: rate_micro_u64(o.rate_micro)?,
+        })
     })
+    .transpose()
+}
+
+/// Validate a `rate_micro` crossing the FFI as `i64`: it must be non-negative.
+pub(crate) fn rate_micro_u64(rate_micro: i64) -> Result<u64> {
+    u64::try_from(rate_micro).map_err(|_| anyhow!("rate_micro must be non-negative"))
 }
 
 impl From<OriginalAmount> for OriginalAmountDto {
@@ -47,8 +58,8 @@ impl From<OriginalAmount> for OriginalAmountDto {
 
 /// FFI → domain conversion for the editable expense fields (#3/#15/#31). The
 /// `group_id`/`draft` flags on [`ExpenseInput`] are handled by the caller.
-pub(crate) fn to_fields(input: ExpenseInput) -> ExpenseFieldsInput {
-    ExpenseFieldsInput {
+pub(crate) fn to_fields(input: ExpenseInput) -> Result<ExpenseFieldsInput> {
+    Ok(ExpenseFieldsInput {
         description: input.description,
         paid_by: to_paid_by(input.paid_by),
         total: Cents(input.total_cents),
@@ -56,8 +67,8 @@ pub(crate) fn to_fields(input: ExpenseInput) -> ExpenseFieldsInput {
         category: input.category,
         notes: input.notes,
         date_ms: input.date_ms,
-        original: to_original(input.original),
-    }
+        original: to_original(input.original)?,
+    })
 }
 
 pub(crate) fn to_paid_by(payers: Vec<Payer>) -> BTreeMap<UserId, Cents> {

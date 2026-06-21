@@ -2311,15 +2311,17 @@ fn wire__crate__api__convert_currency_impl(
             let api_to_currency = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(crate::api::convert_currency(
-                        api_amount_cents,
-                        api_rate_micro,
-                        api_from_currency,
-                        api_to_currency,
-                    ))?;
-                    Ok(output_ok)
-                })())
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::convert_currency(
+                            api_amount_cents,
+                            api_rate_micro,
+                            api_from_currency,
+                            api_to_currency,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
             }
         },
     )
