@@ -152,6 +152,35 @@ impl<S: OpStore> App<S> {
         Ok(user)
     }
 
+    // --- claim & merge (#8) ------------------------------------------------
+
+    /// Claim a placeholder person (#2) as the **local** identity: record a
+    /// reversible alias so all of that placeholder's history resolves to you,
+    /// with no balance change (#8). Used when you were tracked as a guest in
+    /// data you now hold.
+    pub fn claim_person(&mut self, placeholder: &UserId) -> Result<()> {
+        let me = self.me().clone();
+        self.add_alias(placeholder, &me)
+    }
+
+    /// Reconcile two ids that are the same person (e.g. a typed guest and a
+    /// contacts-imported one): record a reversible alias merging `duplicate`
+    /// into `keep`. Balances are preserved; the canonical id is resolved
+    /// deterministically (a real account always wins over a guest, #8).
+    pub fn merge_people(&mut self, duplicate: &UserId, keep: &UserId) -> Result<()> {
+        self.add_alias(duplicate, keep)
+    }
+
+    fn add_alias(&mut self, alias: &UserId, canonical: &UserId) -> Result<()> {
+        if alias == canonical {
+            return Err(AppError::Validation("cannot alias an id to itself".into()));
+        }
+        self.commit(OpKind::AddAlias {
+            alias: alias.clone(),
+            canonical: canonical.clone(),
+        })
+    }
+
     // --- groups ------------------------------------------------------------
 
     /// Create a group (the local user is added as a member) and return its id.

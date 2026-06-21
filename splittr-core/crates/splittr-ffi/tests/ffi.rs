@@ -246,6 +246,50 @@ fn parse_hex(s: &str) -> Vec<u8> {
 }
 
 #[test]
+fn merge_people_preserves_balances_through_the_ffi() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), device_seed(), db_key(), 1).unwrap();
+    engine.set_my_name("Me".into()).unwrap();
+    let me = engine.my_user_id();
+    let bob = engine.add_person("Bob".into()).unwrap();
+    let group = engine
+        .create_group("Trip".into(), vec![bob.clone()], "USD".into())
+        .unwrap();
+    engine
+        .add_expense(ExpenseInput {
+            group_id: Some(group),
+            description: "Hotel".into(),
+            paid_by: vec![Payer {
+                user_id: me.clone(),
+                cents: 3000,
+            }],
+            total_cents: 3000,
+            split: SplitPlanDto::Equal {
+                participants: vec![me, bob.clone()],
+            },
+            category: "travel".into(),
+            notes: None,
+            date_ms: 0,
+            draft: false,
+            original: None,
+        })
+        .unwrap();
+    assert_eq!(engine.overall_net_cents(), 1500);
+
+    // Merge a duplicate placeholder into Bob: my balance is preserved and the
+    // two ids collapse to one friend balance (#8).
+    let dup = engine.add_person("Bobby".into()).unwrap();
+    engine.merge_people(dup.clone(), bob.clone()).unwrap();
+    assert_eq!(engine.overall_net_cents(), 1500);
+    let with_balance = engine
+        .friends()
+        .into_iter()
+        .filter(|f| (f.user_id == bob || f.user_id == dup) && f.net_cents != 0)
+        .count();
+    assert_eq!(with_balance, 1);
+}
+
+#[test]
 fn rejects_a_malformed_seed() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Engine::open(db_path(&dir), vec![1, 2, 3], device_seed(), db_key(), 1).is_err());

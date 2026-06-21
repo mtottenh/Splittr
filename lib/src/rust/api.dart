@@ -88,6 +88,10 @@ abstract class Engine implements RustOpaqueInterface {
     required BigInt site,
   });
 
+  /// Claim a placeholder person as the local identity (#8): their history
+  /// resolves to you with no balance change.
+  Future<void> claimPerson({required String placeholder});
+
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
@@ -98,8 +102,8 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<void> deleteSettlement({required String settlementId});
 
-  /// Replace an expense with a new version. `input.group_id` is ignored (an
-  /// expense cannot change groups).
+  /// Replace an expense with a new version. `input.group_id`/`draft` are
+  /// ignored (an expense cannot change groups, and edit preserves draft state).
   Future<void> editExpense({
     required String expenseId,
     required ExpenseInput input,
@@ -125,6 +129,9 @@ abstract class Engine implements RustOpaqueInterface {
 
   /// Re-seal the root after a privileged action.
   Future<void> lockRoot();
+
+  /// Merge two ids that are the same person (#8), keeping `keep` as canonical.
+  Future<void> mergePeople({required String duplicate, required String keep});
 
   /// The local user's X25519 agreement public key as hex (#6/#14). `None`
   /// before a profile has published it (locked, never-named identity).

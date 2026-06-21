@@ -400,6 +400,46 @@ void main() {
     expect(await engine.isRootUnlocked(), isFalse);
   });
 
+  test('merging duplicate people preserves balances (#8)', () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_merge');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: List.filled(32, 91),
+      deviceSeed: List.filled(32, 92),
+      dbKey: List.filled(32, 93),
+      site: BigInt.from(12),
+    );
+    await engine.setMyName(name: 'Me');
+    final me = await engine.myUserId();
+    final bob = await engine.addPerson(name: 'Bob');
+    final group =
+        await engine.createGroup(name: 'Trip', memberIds: [bob], currency: 'USD');
+    await engine.addExpense(
+      input: ExpenseInput(
+        groupId: group,
+        description: 'Hotel',
+        paidBy: [Payer(userId: me, cents: 3000)],
+        totalCents: 3000,
+        split: SplitPlanDto.equal(participants: [me, bob]),
+        category: 'travel',
+        dateMs: 0,
+        draft: false,
+      ),
+    );
+    expect(await engine.overallNetCents(), 1500);
+
+    // A duplicate guest for the same person, merged into Bob: my balance is
+    // unchanged and the two ids collapse to one friend balance.
+    final dup = await engine.addPerson(name: 'Bobby');
+    await engine.mergePeople(duplicate: dup, keep: bob);
+    expect(await engine.overallNetCents(), 1500);
+    final withBalance = (await engine.friends())
+        .where((f) => (f.userId == bob || f.userId == dup) && f.netCents != 0)
+        .length;
+    expect(withBalance, 1);
+  });
+
   test('root seed vault + pairing SAS through the FFI (#34/#35)', () async {
     final seed = List.filled(32, 80);
     final blob = await sealRootSeed(passphrase: '1234', seed: seed);

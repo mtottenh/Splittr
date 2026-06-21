@@ -124,6 +124,20 @@ impl Engine {
         Ok(self.lock().add_person(&name)?.0)
     }
 
+    /// Claim a placeholder person as the local identity (#8): their history
+    /// resolves to you with no balance change.
+    pub fn claim_person(&self, placeholder: String) -> Result<()> {
+        self.lock().claim_person(&UserId::new(placeholder))?;
+        Ok(())
+    }
+
+    /// Merge two ids that are the same person (#8), keeping `keep` as canonical.
+    pub fn merge_people(&self, duplicate: String, keep: String) -> Result<()> {
+        self.lock()
+            .merge_people(&UserId::new(duplicate), &UserId::new(keep))?;
+        Ok(())
+    }
+
     // --- groups & members --------------------------------------------------
 
     pub fn create_group(

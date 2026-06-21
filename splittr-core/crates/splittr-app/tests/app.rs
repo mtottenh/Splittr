@@ -437,3 +437,56 @@ fn root_lock_gates_privileged_actions_but_not_daily_ops() {
     // The local user id is unchanged across lock/unlock.
     assert_eq!(app.me(), &me);
 }
+
+#[test]
+fn claiming_a_placeholder_preserves_balances_with_zero_change() {
+    // I create a group and a guest "Bob", and an expense I paid split with Bob.
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Trip", std::slice::from_ref(&bob))
+        .unwrap();
+    app.add_expense(group_expense(
+        &group,
+        fields("Hotel", paid(&me, 3000), Cents(3000), equal(&[&me, &bob])),
+    ))
+    .unwrap();
+
+    // Bob owes me 15.00; my overall net is +15.00.
+    assert_eq!(
+        app.friends()
+            .into_iter()
+            .find(|f| f.user == bob)
+            .map(|f| f.net),
+        Some(Cents(1500))
+    );
+    let net_before = app.overall_net();
+    assert_eq!(net_before, Cents(1500));
+
+    // A second placeholder for the same person, merged into Bob. The merge only
+    // redirects ids, so my overall balance is unchanged and the two placeholder
+    // ids collapse to a single friend balance (which id survives is the
+    // deterministic canonical, #8).
+    let bob_dup = app.add_person("Bobby").unwrap();
+    app.merge_people(&bob_dup, &bob).unwrap();
+    assert_eq!(app.overall_net(), net_before, "merge preserves my balance");
+    let with_balance: Vec<_> = app
+        .friends()
+        .into_iter()
+        .filter(|f| (f.user == bob || f.user == bob_dup) && f.net != Cents(0))
+        .collect();
+    assert_eq!(with_balance.len(), 1, "the two ids merge into one balance");
+    assert_eq!(with_balance[0].net, Cents(1500));
+}
+
+#[test]
+fn cannot_alias_yourself() {
+    let mut app = new_app();
+    let me = app.me().clone();
+    assert!(matches!(
+        app.claim_person(&me),
+        Err(AppError::Validation(_))
+    ));
+}
