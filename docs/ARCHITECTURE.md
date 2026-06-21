@@ -76,7 +76,7 @@ flowchart TB
 | `splittr-crdt` (Rust) | `Op`, `Hlc`, content-addressed ids, conflict resolution, `authorize` (entitlement) + `materialize` (value fold) | `splittr-domain`, `serde`, `postcard`, `blake3` | #1, #7, #8, #15, #19, #38 |
 | `splittr-crypto` (Rust) | Identity/device keypairs, signing/verify, AEAD at-rest, recovery phrase, root vault, pairing SAS, invite tokens | `ed25519-dalek`, `x25519-dalek`, `chacha20poly1305`, `argon2`, `bip39`, `blake3` | #6, #7, #14, #16, #22, #34, #35 |
 | `splittr-store` (Rust) | Persist op-log + materialized projection; encryption at rest | trait `Store`; `rusqlite`/`redb` | #1, #22 |
-| `splittr-sync` (Rust) | Discovery, transport, set reconciliation, blob transfer | trait `Transport`; `iroh`, `iroh-gossip`, `iroh-blobs` | #9, #20 |
+| `splittr-sync` (Rust) | Op-set **reconciliation** + the `Transport` seam (in-memory + framed byte-stream done; iroh wrapper pending — see [sync-iroh-integration.md](sync-iroh-integration.md)) | `splittr-crdt`/`-store`, `tokio` io; `iroh`/`-gossip`/`-blobs` later | #9, #20 |
 | `splittr-app` (Rust) | Use-cases: command handling, authorization, query/subscription | composes the above | #19, #23 |
 | `splittr-ffi` (Rust↔Dart) | `flutter_rust_bridge` surface; marshals commands & view-models | FRB codegen → `lib/src/rust/` | #23 |
 | Flutter shell (Dart) | Screens, theme, navigation, reactive binding to FFI streams | `flutter_riverpod`, FRB | #24, +UI of every feature |
@@ -257,11 +257,12 @@ degraded web client is acceptable.
 4. **Persistence + security:** `splittr-store` + at-rest encryption + app lock
    (#1, #22).
 5. **Identity:** #6, #16.
-6. **Transport:** iroh behind `Transport` (#20). Invites/claim (#7, #8): the
-   engine (friend edges, signed invite tokens, claim/merge) and the shell
-   generate/accept UI (link + QR, verify/preview, declare-friendship) are in
-   place; the remaining tail is peering/transport, OS deep links and group-join
-   over the wire.
+6. **Transport (#9/#20):** `splittr-sync` holds the op-set **reconciliation** and
+   the `Transport` seam — done and convergence-tested over in-memory message and
+   byte-stream duplexes; the iroh wrapper + App/FFI wiring are the remaining glue
+   ([sync-iroh-integration.md](sync-iroh-integration.md)). Invites/claim (#7, #8):
+   engine + shell UI in place; the tail is peering/transport, OS deep links and
+   group-join over the wire.
 7. **Value-add features** on the stable core (#3, #4, #5, #10, #11, #12, #13, #17).
 
 ## 13. Traceability
