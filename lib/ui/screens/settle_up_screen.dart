@@ -21,10 +21,18 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
   String? _fromId;
   String? _toId;
 
+  /// The group currency's minor units (engine-owned). 2 until loaded.
+  int _minor = 2;
+
   @override
   void initState() {
     super.initState();
     _fromId = ref.read(appProvider).requireValue.myUserId;
+    Future.microtask(() async {
+      final m =
+          await ref.read(appProvider.notifier).currencyMinorUnits(widget.group.currency);
+      if (mounted) setState(() => _minor = m);
+    });
   }
 
   @override
@@ -37,12 +45,13 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     setState(() {
       _fromId = t.from;
       _toId = t.to;
-      _amount.text = Money.toMajor(t.amountCents).toStringAsFixed(2);
+      _amount.text =
+          Money.toMajor(t.amountCents, minorUnits: _minor).toStringAsFixed(_minor);
     });
   }
 
   Future<void> _record() async {
-    final cents = Money.tryParseToCents(_amount.text);
+    final cents = Money.tryParseToCents(_amount.text, minorUnits: _minor);
     if (_fromId == null || _toId == null || _fromId == _toId) {
       _error('Pick two different people.');
       return;

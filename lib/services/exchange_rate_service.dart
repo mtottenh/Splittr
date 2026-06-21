@@ -42,7 +42,9 @@ class HttpExchangeRateService implements ExchangeRateService {
 
     try {
       final uri = Uri.https(host, '/$day', {'from': base, 'to': quote});
-      final res = await _client.get(uri);
+      // Bound the wait so a hung connection can't block the rate future forever;
+      // a timeout is caught below and the caller falls back to a manual rate.
+      final res = await _client.get(uri).timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       final rates = body['rates'] as Map<String, dynamic>?;

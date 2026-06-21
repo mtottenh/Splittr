@@ -9,20 +9,32 @@ import 'package:intl/intl.dart';
 class Money {
   const Money._();
 
-  /// Parses user input such as `"12.50"` or `"1,234.5"` into integer cents.
+  /// Parses user input such as `"12.50"` or `"1,234.5"` into integer minor
+  /// units. [minorUnits] is the currency's decimal places (engine
+  /// `currencyMinorUnits`): 2 for USD, 0 for JPY, 3 for BHD — so the scale is
+  /// never hardcoded. Defaults to 2 for callers in a known-2-decimal context.
   ///
-  /// Returns `null` when the text cannot be interpreted as a positive amount.
-  static int? tryParseToCents(String input) {
+  /// Returns `null` when the text cannot be interpreted as a non-negative amount.
+  static int? tryParseToCents(String input, {int minorUnits = 2}) {
     final cleaned = input.replaceAll(',', '').trim();
     if (cleaned.isEmpty) return null;
     final value = double.tryParse(cleaned);
     if (value == null || value.isNaN || value.isInfinite) return null;
     if (value < 0) return null;
-    return (value * 100).round();
+    return (value * _pow10(minorUnits)).round();
   }
 
-  /// Converts integer [cents] back into a major-unit double (e.g. dollars).
-  static double toMajor(int cents) => cents / 100.0;
+  /// Converts integer minor units back into a major-unit double (e.g. dollars).
+  static double toMajor(int cents, {int minorUnits = 2}) =>
+      cents / _pow10(minorUnits);
+
+  static int _pow10(int n) {
+    var r = 1;
+    for (var i = 0; i < n; i++) {
+      r *= 10;
+    }
+    return r;
+  }
 
   /// Formats [cents] using the currency [code]'s symbol and locale.
   static String format(int cents, {String code = 'USD', String? locale}) {

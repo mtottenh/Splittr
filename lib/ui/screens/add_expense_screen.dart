@@ -177,23 +177,25 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _baseMinor = bm;
       _loadingRate = false;
       if (_foreign && rate != null) _rate.text = rate.toString();
+      // Re-format the edit pre-fill now the base minor units are known (initState
+      // could only assume 2): a ¥1000 expense must show "1000", not "10.00".
+      if (_isEditing && !_didEditPrefill) {
+        _didEditPrefill = true;
+        final e = widget.existing!;
+        _amount.text =
+            Money.toMajor(e.totalCents, minorUnits: bm).toStringAsFixed(bm);
+        if (e.paidBy.length > 1) {
+          for (final p in e.paidBy) {
+            _payerInput(p.userId).text =
+                Money.toMajor(p.cents, minorUnits: bm).toStringAsFixed(bm);
+          }
+        }
+      }
     });
   }
 
-  int _pow10(int n) {
-    var r = 1;
-    for (var i = 0; i < n; i++) {
-      r *= 10;
-    }
-    return r;
-  }
-
-  /// Parse a decimal string into integer minor units for `minor` decimal places.
-  int? _parseMinor(String text, int minor) {
-    final v = double.tryParse(text.replaceAll(',', '').trim());
-    if (v == null || v.isNaN || v < 0) return null;
-    return (v * _pow10(minor)).round();
-  }
+  /// Guards the one-time edit pre-fill reformat in [_refreshCurrencyMeta].
+  bool _didEditPrefill = false;
 
   TextEditingController _inputFor(String userId) =>
       _splitInputs.putIfAbsent(userId, () => TextEditingController());
@@ -210,10 +212,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
     return [
       for (final m in _members)
-        if ((Money.tryParseToCents(_payerInput(m.userId).text) ?? 0) > 0)
+        if ((Money.tryParseToCents(_payerInput(m.userId).text, minorUnits: _baseMinor) ?? 0) > 0)
           Payer(
             userId: m.userId,
-            cents: Money.tryParseToCents(_payerInput(m.userId).text)!,
+            cents: Money.tryParseToCents(_payerInput(m.userId).text, minorUnits: _baseMinor)!,
           ),
     ];
   }
@@ -229,7 +231,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             for (final id in ids)
               Payer(
                 userId: id,
-                cents: Money.tryParseToCents(_inputFor(id).text) ?? 0,
+                cents: Money.tryParseToCents(_inputFor(id).text, minorUnits: _baseMinor) ?? 0,
               ),
           ],
         );
@@ -259,7 +261,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final int totalCents;
     OriginalAmountDto? original;
     if (_foreign) {
-      final orig = _parseMinor(_amount.text, _currencyMinor);
+      final orig = Money.tryParseToCents(_amount.text, minorUnits: _currencyMinor);
       if (orig == null || orig <= 0) {
         _error('Enter a valid amount.');
         return;
@@ -282,7 +284,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         rateMicro: rateMicro,
       );
     } else {
-      final t = _parseMinor(_amount.text, _baseMinor);
+      final t = Money.tryParseToCents(_amount.text, minorUnits: _baseMinor);
       if (t == null || t <= 0) {
         _error('Enter a valid amount.');
         return;
@@ -410,7 +412,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     ),
                     onChanged: (_) => setState(() {}),
                     validator: (v) =>
-                        (_parseMinor(v ?? '', _currencyMinor) ?? 0) <= 0
+                        (Money.tryParseToCents(v ?? '', minorUnits: _currencyMinor) ?? 0) <= 0
                             ? 'Enter an amount'
                             : null,
                   ),
@@ -497,7 +499,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   /// Editable exchange rate (pre-filled from a live lookup) plus a converted
   /// preview. The conversion itself runs in the engine (no duplicated maths).
   Widget _foreignRateRow() {
-    final orig = _parseMinor(_amount.text, _currencyMinor);
+    final orig = Money.tryParseToCents(_amount.text, minorUnits: _currencyMinor);
     final rate = double.tryParse(_rate.text.trim());
     final bodySmall = Theme.of(context).textTheme.bodySmall;
     return Padding(
@@ -582,10 +584,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       );
     }
 
-    final total = _parseMinor(_amount.text, _baseMinor) ?? 0;
+    final total = Money.tryParseToCents(_amount.text, minorUnits: _baseMinor) ?? 0;
     final entered = _members.fold<int>(
       0,
-      (sum, m) => sum + (_parseMinor(_payerInput(m.userId).text, _baseMinor) ?? 0),
+      (sum, m) => sum + (Money.tryParseToCents(_payerInput(m.userId).text, minorUnits: _baseMinor) ?? 0),
     );
     final balanced = entered == total;
     return Column(
@@ -642,7 +644,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   List<Widget> _participantRows() {
     final entryMinor = _foreign ? _currencyMinor : _baseMinor;
-    final totalCents = _parseMinor(_amount.text, entryMinor) ?? 0;
+    final totalCents = Money.tryParseToCents(_amount.text, minorUnits: entryMinor) ?? 0;
     final equalShare =
         _participants.isEmpty ? 0 : totalCents ~/ _participants.length;
     return [
