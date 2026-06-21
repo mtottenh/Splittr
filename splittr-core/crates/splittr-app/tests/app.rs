@@ -92,6 +92,32 @@ fn create_group_add_expense_then_settle_up() {
 }
 
 #[test]
+fn activity_renders_settlement_in_the_group_currency() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let group = app
+        .create_group("Tokyo", std::slice::from_ref(&bob))
+        .unwrap();
+    app.set_group_currency(&group, "JPY").unwrap(); // 0 minor units
+
+    // ¥1000 paid: must render as "1000", not "10.00".
+    app.record_settlement(&group, &bob, &me, Cents(1000))
+        .unwrap();
+    let feed = app.activity();
+    let settlement = feed
+        .iter()
+        .find(|e| e.kind == "settlement")
+        .expect("a settlement entry");
+    assert!(
+        settlement.summary.ends_with("1000"),
+        "expected yen with no decimals, got {:?}",
+        settlement.summary
+    );
+}
+
+#[test]
 fn group_summary_shows_my_balance_and_names() {
     let mut app = new_app();
     app.set_my_name("Me").unwrap();

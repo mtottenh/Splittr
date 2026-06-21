@@ -1,8 +1,9 @@
 //! Read-side view-models — UI-friendly projections over the engine state.
 
 use splittr_crdt::{
-    my_net_by_group, net_balances, pairwise_with, settle_up, Cents, ExpenseId, ExpenseRecord,
-    GroupId, Op, OpKind, OriginalAmount, Projection, PublicKey, SettlementId, Transfer, UserId,
+    minor_units, my_net_by_group, net_balances, pairwise_with, settle_up, Cents, ExpenseId,
+    ExpenseRecord, GroupId, Op, OpKind, OriginalAmount, Projection, PublicKey, SettlementId,
+    Transfer, UserId,
 };
 
 /// A device authorized for the local identity (#16).
@@ -312,9 +313,15 @@ pub fn friend_detail(p: &Projection, me: &UserId, friend: &UserId) -> Option<Fri
     })
 }
 
-fn money(amount: Cents) -> String {
-    let cents = amount.0.abs();
-    format!("{}.{:02}", cents / 100, cents % 100)
+/// Render a settlement amount in its group's currency (non-group → USD), so the
+/// activity feed honours currencies with 0 or 3 minor units (defers to
+/// `Cents::format_units` / `minor_units` rather than hardcoding 2 decimals).
+fn money(p: &Projection, group: Option<&GroupId>, amount: Cents) -> String {
+    let code = group
+        .and_then(|g| p.groups.get(g))
+        .map(|g| g.currency.as_str())
+        .unwrap_or("USD");
+    amount.format_units(minor_units(code))
 }
 
 /// A reverse-chronological feed derived from the signed op-log. Names are
@@ -335,14 +342,18 @@ pub fn activity(ops: &[Op], p: &Projection, me: &UserId) -> Vec<ActivityEntry> {
                 }
                 OpKind::VoidExpense { .. } => ("delete", "Deleted an expense".to_string()),
                 OpKind::RecordSettlement {
-                    from, to, amount, ..
+                    from,
+                    to,
+                    amount,
+                    group,
+                    ..
                 } => (
                     "settlement",
                     format!(
                         "{} paid {} {}",
                         display_name(p, from),
                         display_name(p, to),
-                        money(*amount)
+                        money(p, group.as_ref(), *amount)
                     ),
                 ),
                 OpKind::UpsertProfile { user, name } if user == me => {
