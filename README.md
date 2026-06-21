@@ -26,12 +26,13 @@ sync peer-to-peer without a central authority.
 Flutter shell (Dart)         presentation only — screens, theme, navigation
    │  commands / view-model streams (FFI: flutter_rust_bridge)
 Rust splittr-core
-   ├─ splittr-domain   money (integer cents), ids, split/balance math
+   ├─ splittr-domain   money (integer cents), ids, split/balance/debt math
    ├─ splittr-crdt     Op, HLC, conflict resolution, projection fold
-   ├─ splittr-crypto   identity/device keys, signing, E2E            (planned)
-   ├─ splittr-store    durable op-log + projection (redb) + Repository
-   ├─ splittr-sync     iroh transport (QUIC, hole-punch, relay)      (planned)
-   └─ splittr-app/ffi  use-cases + FFI surface                       (planned)
+   ├─ splittr-crypto   identity/device keys, signing, AEAD-at-rest, recovery
+   ├─ splittr-store    durable op-log + projection (redb, encrypted)
+   ├─ splittr-app      command/query use-cases (validate, authorize, emit ops)
+   ├─ splittr-ffi      flutter_rust_bridge surface (Engine + view-model DTOs)
+   └─ splittr-sync     iroh transport (QUIC, hole-punch, relay)      (planned)
 ```
 
 Why this shape (full rationale in the ADRs):
@@ -54,15 +55,22 @@ Read next:
 
 ## Status
 
-This is a migration in progress, developed foundations-first:
+Built engine-first; the Rust core and its FFI are in place, and the Flutter
+shell runs on them end-to-end (Linux desktop today).
 
-- ✅ **Rust core foundation** — `splittr-domain`, `splittr-crdt`, `splittr-store`
-  implemented and tested (property-based convergence + durable persistence).
-- 🚧 **Next** — `splittr-app` (command/query use-cases), the FFI scaffold, then
-  rebinding the UI and retiring the v1 Dart logic.
-- 📦 **v1 Flutter app** — a complete, runnable Dart implementation still lives in
-  `lib/`; it is being replaced layer-by-layer by the Rust core (its split/balance
-  logic currently doubles as a differential-test oracle for the Rust port).
+- ✅ **Engine** — `splittr-domain`, `splittr-crdt`, `splittr-crypto`,
+  `splittr-store`, `splittr-app` and the `splittr-ffi` (flutter_rust_bridge)
+  surface are implemented and tested: property-based convergence, durable
+  encrypted persistence (redb), and 100+ Rust tests.
+- ✅ **Flutter shell** — presentation only; the v1 Dart business logic has been
+  removed. Every screen renders engine view-models through a Riverpod facade
+  over the FFI (`lib/state/`).
+- ✅ **Local security** — op-log encrypted at rest (XChaCha20-Poly1305), a
+  biometric/PIN app lock, a cold root key with device-only daily opens, a BIP39
+  recovery phrase, and device enrol/revoke with a pairing short-auth-string.
+- 🚧 **Next** — `splittr-sync` (iroh peer-to-peer transport) and end-to-end
+  encryption for synced ops, then the remaining per-platform build hooks (only
+  Linux desktop bundles the engine today — see [`BUILDING.md`](BUILDING.md)).
 
 ## Features
 
@@ -95,15 +103,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
 ```
 
-**Flutter shell** (the current v1 app):
+**Flutter shell** (runs on the bundled Rust engine):
 
 ```bash
 flutter pub get
-flutter run                 # auto-selects a device; or -d linux|windows|chrome|<id>
-flutter test                # widget/unit tests
+flutter run -d linux        # Linux desktop bundles + loads the engine
+flutter test                # widget tests + an end-to-end engine bridge test
 flutter analyze             # strict static analysis
 ```
 
-Desktop builds need that platform's native toolchain (clang + GTK for Linux,
-Visual Studio for Windows, Xcode for Apple). Building the Rust core into the
-Flutter app (cross-compilation + codegen) arrives with the FFI scaffold.
+Full environment setup, the flutter_rust_bridge codegen step, and how the
+native engine is bundled per platform live in [**BUILDING.md**](BUILDING.md).
