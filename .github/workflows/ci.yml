@@ -24,6 +24,37 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
+  msrv:
+    name: Rust MSRV (1.85)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: splittr-core
+    steps:
+      - uses: actions/checkout@v4
+      # Must match `rust-version` in the workspace manifest.
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: splittr-core
+      - run: cargo check --workspace --all-targets
+
+  audit:
+    name: Security advisories (cargo-audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: splittr-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: splittr-core
+      - run: cargo install cargo-audit --locked
+      # Fails on a security vulnerability in any (transitive) dependency.
+      - run: cargo audit
+
   flutter:
     name: Flutter shell
     runs-on: ubuntu-latest
@@ -37,6 +68,16 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      # Codegen-drift guard (#2c): regenerate the FRB bindings and fail if they
+      # differ from what's committed, so Dart and Rust can't silently diverge.
+      - name: Assert FRB bindings are in sync
+        run: |
+          cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
+          flutter_rust_bridge_codegen generate
+          if ! git diff --exit-code -- lib/src/rust splittr-core/crates/splittr-ffi/src/frb_generated.rs; then
+            echo "::error::FRB bindings are stale; run flutter_rust_bridge_codegen generate and commit"
+            exit 1
+          fi
       - run: flutter analyze
       # Clean-break guard (#1): the v1 Dart JSON store must stay deleted.
       - name: Assert v1 JSON store is gone

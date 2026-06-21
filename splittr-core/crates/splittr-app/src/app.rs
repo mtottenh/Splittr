@@ -492,6 +492,7 @@ impl<S: OpStore> App<S> {
             self.identity.device_key()
         };
         let op = Op::signed(hlc, key, kind);
+        tracing::debug!(op = ?op.id, as_root, "committing op");
         match self.repo.append(&op)? {
             Applied::Rejected => Err(AppError::Validation("op failed verification".into())),
             Applied::Stored | Applied::Duplicate => Ok(()),

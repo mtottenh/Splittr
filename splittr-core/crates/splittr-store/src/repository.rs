@@ -48,16 +48,19 @@ impl<S: OpStore> Repository<S> {
     /// boundary: a forged/tampered op is [`Applied::Rejected`] (never stored).
     /// A duplicate (same content id) is [`Applied::Duplicate`]. Idempotent.
     pub fn append(&mut self, op: &Op) -> Result<Applied> {
-        if let Err(_reason) = op.verify() {
-            // `_reason` (corruption vs forgery) will be logged once a tracing
-            // layer / network ingest exists (#14/#20).
+        if let Err(reason) = op.verify() {
+            // The trust boundary: surface *why* an op was dropped (corruption vs
+            // forgery) — invaluable once ops arrive over the network (#14/#20).
+            tracing::warn!(op = ?op.id, %reason, "rejected op: verification failed");
             return Ok(Applied::Rejected);
         }
         if !self.store.append(op)? {
+            tracing::debug!(op = ?op.id, "duplicate op ignored");
             return Ok(Applied::Duplicate);
         }
         self.materializer.apply(op);
         *self.cached.borrow_mut() = None; // invalidate; recompute on next read
+        tracing::debug!(op = ?op.id, "op stored");
         Ok(Applied::Stored)
     }
 

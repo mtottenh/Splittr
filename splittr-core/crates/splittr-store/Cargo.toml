@@ -2,6 +2,7 @@
 name = "splittr-store"
 version = "0.1.0"
 edition = "2021"
+rust-version.workspace = true
 description = "Persistence for the Splittr op-log + a Repository wiring it to the CRDT fold."
 
 [dependencies]
@@ -10,6 +11,7 @@ splittr-crypto = { path = "../splittr-crypto" }
 postcard = { workspace = true }
 redb = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

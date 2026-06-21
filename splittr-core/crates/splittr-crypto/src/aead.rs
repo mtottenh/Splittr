@@ -11,7 +11,7 @@
 
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{Key, KeyInit, XChaCha20Poly1305, XNonce};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 const NONCE_LEN: usize = 24;
 
@@ -21,12 +21,17 @@ pub(crate) const AEAD_V1: u8 = 1;
 
 /// A 256-bit symmetric key for at-rest encryption. Wiped from memory on drop;
 /// not `Clone`, so copies of key material don't proliferate silently.
-#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct AeadKey([u8; 32]);
 
 impl AeadKey {
     pub fn new(bytes: [u8; 32]) -> Self {
         Self(bytes)
+    }
+}
+
+impl Drop for AeadKey {
+    fn drop(&mut self) {
+        self.0.zeroize();
     }
 }
 

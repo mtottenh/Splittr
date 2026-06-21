@@ -2,6 +2,7 @@
 name = "splittr-domain"
 version = "0.1.0"
 edition = "2021"
+rust-version.workspace = true
 description = "Pure value types and money/split math for Splittr."
 
 [dependencies]
