@@ -14,6 +14,26 @@ pub struct OpId(pub [u8; 32]);
 
 /// The operation vocabulary (ADR-0001 §Operation vocabulary). A focused subset
 /// that exercises every conflict rule; lock/identity ops join with #15/#6/#16.
+///
+/// **Wire-format contract — append-only.** These bytes are content-addressed,
+/// signed (`canonical`), and persisted via **postcard**, a non-self-describing
+/// format that encodes each enum variant by its *ordinal index* and each struct
+/// field by *declaration order* (no names, no tags). So this enum is an
+/// on-disk/on-wire API, not just a type:
+/// - **Never reorder or remove** a variant, and only ever **append** a new one at
+///   the end. Reordering renumbers later variants, so existing stored/synced ops
+///   silently decode as the wrong variant — and, because the bytes feed the
+///   `OpId` and signature, the *same* logical op would get a different id and a
+///   non-verifying signature, breaking dedup and convergence.
+/// - **Never add, remove, or reorder the fields** of an existing variant, for the
+///   same reason. New capability = a **new variant appended here**, never a change
+///   to an existing one (the event-sourcing-friendly path: old ops stay valid
+///   forever).
+///
+/// The `op_kind_discriminants_are_frozen` / `op_canonical_bytes_are_frozen`
+/// golden tests pin this; if one fails you changed the format — append a new
+/// variant instead, and treat any deliberate format change as a versioned
+/// migration.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum OpKind {
     CreateGroup {
@@ -194,4 +214,138 @@ impl std::error::Error for VerifyError {}
 /// hash and the signature (the single definition of "the bytes that matter").
 fn canonical(hlc: &Hlc, author: &PublicKey, kind: &OpKind) -> Vec<u8> {
     postcard::to_allocvec(&(hlc, author, kind)).expect("canonical encoding is infallible")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::SiteId;
+    use splittr_domain::ExpenseFields;
+    use std::collections::BTreeMap;
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// One representative instance of every `OpKind`, in declaration order. The
+    /// position in this list is the postcard discriminant the wire format pins.
+    fn one_of_each() -> Vec<OpKind> {
+        let g = || GroupId::from("g");
+        let u = || UserId::from("u");
+        let e = || ExpenseId::from("e");
+        let s = || SettlementId::from("s");
+        let fields = || ExpenseFields::new(BTreeMap::new(), Cents(0), vec![]);
+        let pk = || PublicKey([0u8; 32]);
+        vec![
+            OpKind::CreateGroup {
+                group: g(),
+                name: "n".into(),
+            },
+            OpKind::SetGroupName {
+                group: g(),
+                name: "n".into(),
+            },
+            OpKind::SetGroupCurrency {
+                group: g(),
+                currency: "USD".into(),
+            },
+            OpKind::SetMembership {
+                group: g(),
+                user: u(),
+                member: true,
+            },
+            OpKind::CreateExpense {
+                expense: e(),
+                group: Some(g()),
+                fields: fields(),
+                draft: false,
+            },
+            OpKind::EditExpense {
+                expense: e(),
+                fields: fields(),
+            },
+            OpKind::PublishExpense { expense: e() },
+            OpKind::VoidExpense { expense: e() },
+            OpKind::SetExpenseLock {
+                expense: e(),
+                locked: true,
+            },
+            OpKind::SetClosedPeriod {
+                group: g(),
+                until_ms: 0,
+            },
+            OpKind::RecordSettlement {
+                settlement: s(),
+                group: Some(g()),
+                from: u(),
+                to: u(),
+                amount: Cents(0),
+            },
+            OpKind::VoidSettlement { settlement: s() },
+            OpKind::AddAlias {
+                alias: u(),
+                canonical: u(),
+            },
+            OpKind::DeclareFriend { other: u() },
+            OpKind::UpsertProfile {
+                user: u(),
+                name: "n".into(),
+            },
+            OpKind::SetAgreementKey {
+                user: u(),
+                key: [0u8; 32],
+            },
+            OpKind::AuthorizeDevice {
+                identity: pk(),
+                device: pk(),
+                site: 0,
+            },
+            OpKind::RevokeDevice {
+                identity: pk(),
+                device: pk(),
+            },
+        ]
+    }
+
+    #[test]
+    fn op_kind_discriminants_are_frozen() {
+        // postcard encodes the enum variant as a leading varint = declaration
+        // index (a single byte for 0..=17). If a variant is reordered/removed,
+        // these shift and previously-stored ops mis-decode — see the OpKind
+        // wire-format contract. New capability must be *appended*, not inserted.
+        let kinds = one_of_each();
+        assert_eq!(kinds.len(), 18, "every OpKind variant is represented");
+        for (want, kind) in kinds.iter().enumerate() {
+            let bytes = postcard::to_allocvec(kind).unwrap();
+            assert_eq!(bytes[0] as usize, want, "discriminant for {kind:?}");
+        }
+    }
+
+    #[test]
+    fn op_canonical_bytes_are_frozen() {
+        // A fixed op → fixed canonical bytes → fixed id and signature. If this
+        // golden hex changes, the wire format changed (id/signature-breaking).
+        // Only update it as a deliberate, versioned migration.
+        let key = SigningKey::from_seed([0x42; 32]);
+        let hlc = Hlc {
+            wall_ms: 1_700_000_000_000,
+            counter: 7,
+            site: SiteId(3),
+        };
+        let kind = OpKind::CreateGroup {
+            group: GroupId::from("g0"),
+            name: "Trip".into(),
+        };
+        let content = canonical(&hlc, &key.public(), &kind);
+        assert_eq!(
+            hex(&content),
+            "80d095ffbc3107032152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12000267300454726970"
+        );
+        // The id is the BLAKE3 of those bytes; pin it too.
+        let op = Op::signed(hlc, &key, kind);
+        assert_eq!(
+            hex(&op.id.0),
+            "c458f448d8c71a1293e629e52a3856b75c6feecc6dabc83e9ac023840099fe64"
+        );
+    }
 }
