@@ -12,6 +12,7 @@
 
 mod aead;
 mod agreement;
+mod invite;
 mod keys;
 mod pairing;
 mod recovery;
@@ -20,6 +21,7 @@ mod vault;
 
 pub use aead::{open, seal, AeadKey};
 pub use agreement::{AgreementKey, AgreementPublic};
+pub use invite::Invite;
 pub use keys::{PublicKey, SigningKey};
 pub use pairing::PairingTranscript;
 pub use recovery::{recovery_phrase, seed_from_phrase};
