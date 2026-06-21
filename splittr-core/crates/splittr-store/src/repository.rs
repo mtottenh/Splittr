@@ -48,7 +48,9 @@ impl<S: OpStore> Repository<S> {
     /// boundary: a forged/tampered op is [`Applied::Rejected`] (never stored).
     /// A duplicate (same content id) is [`Applied::Duplicate`]. Idempotent.
     pub fn append(&mut self, op: &Op) -> Result<Applied> {
-        if !op.verify() {
+        if let Err(_reason) = op.verify() {
+            // `_reason` (corruption vs forgery) will be logged once a tracing
+            // layer / network ingest exists (#14/#20).
             return Ok(Applied::Rejected);
         }
         if !self.store.append(op)? {

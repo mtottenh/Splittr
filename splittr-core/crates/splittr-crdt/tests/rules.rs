@@ -494,16 +494,30 @@ fn signed_op_verifies_and_tampering_is_detected() {
             name: "Trip".into(),
         },
     );
-    assert!(valid.verify());
+    assert!(valid.verify().is_ok());
 
-    // Mutating the content (without re-signing) breaks both the id hash and the
-    // signature.
+    // Mutating the content (without re-signing) breaks the id hash first.
     let mut tampered = valid.clone();
     tampered.kind = OpKind::CreateGroup {
         group: GroupId::from("g0"),
         name: "Hacked".into(),
     };
-    assert!(!tampered.verify());
+    assert_eq!(tampered.verify(), Err(VerifyError::HashMismatch));
+
+    // A self-consistent op (id matches its content) whose signature is for *other*
+    // content isolates the forgery case, distinct from corruption. Borrow a second
+    // op's signature: `valid`'s id/content are untouched, so only the signature
+    // check fails.
+    let other = op(
+        1,
+        OpKind::CreateGroup {
+            group: GroupId::from("g1"),
+            name: "Other".into(),
+        },
+    );
+    let mut forged = valid.clone();
+    forged.sig = other.sig;
+    assert_eq!(forged.verify(), Err(VerifyError::BadSignature));
 }
 
 #[test]

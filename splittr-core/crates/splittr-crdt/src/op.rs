@@ -154,13 +154,41 @@ impl Op {
         }
     }
 
-    /// Verify the content hash and the author's signature. Returns `false` for a
-    /// forged, corrupted, or tampered op.
-    pub fn verify(&self) -> bool {
+    /// Verify the content hash and the author's signature at the trust boundary.
+    /// `Ok(())` for a genuine op; an [`VerifyError`] distinguishes corruption (the
+    /// id doesn't match the bytes) from forgery (a bad signature) so callers can
+    /// log the cause — useful once ops arrive over the network (#14/#20).
+    pub fn verify(&self) -> Result<(), VerifyError> {
         let content = canonical(&self.hlc, &self.author, &self.kind);
-        *blake3::hash(&content).as_bytes() == self.id.0 && verify(&self.author, &content, &self.sig)
+        if *blake3::hash(&content).as_bytes() != self.id.0 {
+            return Err(VerifyError::HashMismatch);
+        }
+        if !verify(&self.author, &content, &self.sig) {
+            return Err(VerifyError::BadSignature);
+        }
+        Ok(())
     }
 }
+
+/// Why an [`Op`] failed verification (the trust-boundary failure reason).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum VerifyError {
+    /// The content hash doesn't match the id — corruption or tampering.
+    HashMismatch,
+    /// The signature doesn't verify against the author — forgery.
+    BadSignature,
+}
+
+impl core::fmt::Display for VerifyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            VerifyError::HashMismatch => f.write_str("op content hash does not match its id"),
+            VerifyError::BadSignature => f.write_str("op signature does not verify"),
+        }
+    }
+}
+
+impl std::error::Error for VerifyError {}
 
 /// The canonical byte encoding of an op's content — the input to both the id
 /// hash and the signature (the single definition of "the bytes that matter").
