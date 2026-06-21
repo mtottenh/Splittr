@@ -299,6 +299,7 @@ fn invites_and_friend_declarations_through_the_ffi() {
     let token = engine.create_friend_invite(1_000).unwrap();
     let dto = verify_invite(token.clone(), 500).unwrap();
     assert_eq!(dto.context, "friend");
+    assert_eq!(dto.inviter, format!("id:{}", engine.identity_public()));
     assert!(dto.valid);
     assert!(
         !verify_invite(token.clone(), 2_000).unwrap().valid,

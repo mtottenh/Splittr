@@ -342,7 +342,9 @@ class GroupSummaryDto {
 
 /// A decoded invite for preview before accepting (#7).
 class InviteDto {
-  /// The inviter's identity public key, hex-encoded.
+  /// The inviter's identity as a user id (`id:<hex>`), ready to pass to
+  /// `add_friend`; the embedded hex is the inviter's identity public key,
+  /// usable as a fingerprint for the trust preview.
   final String inviter;
 
   /// `"friend"` or `"group:<id>"`.

@@ -150,7 +150,9 @@ pub struct DeviceViewDto {
 
 /// A decoded invite for preview before accepting (#7).
 pub struct InviteDto {
-    /// The inviter's identity public key, hex-encoded.
+    /// The inviter's identity as a user id (`id:<hex>`), ready to pass to
+    /// `add_friend`; the embedded hex is the inviter's identity public key,
+    /// usable as a fingerprint for the trust preview.
     pub inviter: String,
     /// `"friend"` or `"group:<id>"`.
     pub context: String,

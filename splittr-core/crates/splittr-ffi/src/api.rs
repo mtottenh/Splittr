@@ -9,8 +9,8 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use splittr_app::{
-    App, Cents, ExpenseDraft, GroupId, Identity, Invite, PairingTranscript, PublicKey, RedbOpStore,
-    SettlementId, SiteId, UserId,
+    user_id_for, App, Cents, ExpenseDraft, GroupId, Identity, Invite, PairingTranscript, PublicKey,
+    RedbOpStore, SettlementId, SiteId, UserId,
 };
 
 use crate::convert::to_fields;
@@ -451,7 +451,7 @@ pub fn open_root_seed(passphrase: String, blob: Vec<u8>) -> Option<Vec<u8>> {
 pub fn verify_invite(invite: Vec<u8>, now_ms: u64) -> Option<InviteDto> {
     let invite = Invite::from_bytes(&invite)?;
     Some(InviteDto {
-        inviter: hex32(&invite.inviter.0),
+        inviter: user_id_for(&invite.inviter).to_string(),
         context: invite.context.clone(),
         expiry_ms: invite.expiry_ms,
         valid: invite.verify() && !invite.is_expired(now_ms),

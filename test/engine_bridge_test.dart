@@ -457,7 +457,7 @@ void main() {
     final dto = (await verifyInvite(invite: token, nowMs: BigInt.from(500)))!;
     expect(dto.context, 'friend');
     expect(dto.valid, isTrue);
-    expect(dto.inviter, await engine.identityPublic());
+    expect(dto.inviter, 'id:${await engine.identityPublic()}');
     final expired =
         (await verifyInvite(invite: token, nowMs: BigInt.from(2000)))!;
     expect(expired.valid, isFalse);
