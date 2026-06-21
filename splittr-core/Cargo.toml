@@ -28,6 +28,8 @@ x25519-dalek = { version = "2", features = ["static_secrets"] }
 bip39 = "2"
 # Password-based KDF (Argon2id) for sealing the root seed under a PIN (#34).
 argon2 = "0.5"
+# Best-effort wiping of secret material from memory (#41).
+zeroize = { version = "1", features = ["derive"] }
 # Pure-Rust embedded store for the durable op-log (no C toolchain; stores
 # opaque, eventually-encrypted op bytes keyed by content id).
 redb = "2"
