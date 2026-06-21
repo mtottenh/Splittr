@@ -18,25 +18,24 @@
 |---|---------|--------|----------|
 | **H1** | Device authorization not enforced in the fold | ✅ **Fixed** | `a33a876`/`ab2be4e` (#38). A full `Authority` pass now derives certs, aliases, founders, a membership *timeline*, and entity bindings, and `Authority::entitled()` gates every value op by the author's identity being a member/participant/subject. New **ADR-0006**; docs realigned; `rules.rs` grew to 24 tests. Exceeds the recommended fix. |
 | **H2** | Projection refold per read + `for_group` deep-clones per group | ✅ **Fixed** | `cfc0ff3` (#39/#44). `Repository` now memoizes the projection in a `RefCell`, invalidated on successful append. `query::groups` folds once via `my_net_by_group`; `for_group` no longer clones `groups`/`users`/`devices`. |
-| **H3** | Argon2 params unpinned + unversioned crypto blobs | ⬜ **Open** | `splittr-crypto` is untouched since the review. `vault.rs` still uses `Argon2::default()`; no version byte. |
-| **M1** | Secret material not zeroized | ⬜ **Open** | `splittr-crypto` untouched. |
-| **M2** | Unchecked money arithmetic | ⬜ **Open** | `money.rs` ops still use raw `+`/`-`. |
+| **H3** | Argon2 params unpinned + unversioned crypto blobs | ✅ **Fixed** | #40. `vault.rs` pins `Params::new(19_456, 2, 1, Some(32))`; both vault and AEAD blobs carry a version byte and reject unknown versions. |
+| **M1** | Secret material not zeroized | ✅ **Fixed** | #41. `AeadKey` zero-on-drop (+ no `Clone`); derived key and decrypted seed in `Zeroizing`. |
+| **M2** | Unchecked money arithmetic | ✅ **Fixed** | #42. `Cents` ops are checked (panic over silent wrap); `checked_add`/`checked_sub`/`saturating_add` added. |
 | **M3** | Six expense methods + `#[allow(too_many_arguments)]` ×6 | ✅ **Fixed** | `a4f4089` (#43). Collapsed onto an `ExpenseDraft` params struct; all six `#[allow]`s gone (only the generated `frb_generated.rs` retains the lint). |
 | **M4** | `RedbOpStore::len()` decrypts every op to count | ✅ **Fixed** | `cfc0ff3`. Now `table.len()` — O(1). |
-| **M5** | `money()` formatter ignores currency minor units | ⬜ **Open** | `query.rs:317` still `format!("{}.{:02}", …/100, …%100)`. |
-| **M6** | `rate_micro as u64` can wrap a negative input | ⬜ **Open** | `api.rs:370` / `convert.rs:34` still `as u64`. |
-| **M7** | `Op::verify` returns `bool`, dropping the reason | ⬜ **Open** | `op.rs` untouched. |
+| **M5** | `money()` formatter ignores currency minor units | ✅ **Fixed** | #45. `Cents::format_units(minor_units)`; activity feed formats via `minor_units`. Dart twin (§3a) fixed too. |
+| **M6** | `rate_micro as u64` can wrap a negative input | ✅ **Fixed** | #46. `rate_micro_u64` (`try_from`) rejects negatives at the FFI edge. |
+| **M7** | `Op::verify` returns `bool`, dropping the reason | ✅ **Fixed** | #47. Returns `Result<(), VerifyError>` (`HashMismatch`/`BadSignature`); logged at `append`. |
 | Low | Membership assemble loop O(groups × membership) | ✅ **Fixed** | Replaced by `Authority::current_members` (per-group). |
-| Low | `from == to` settlement guard ignores aliases | ✅ **Fixed** | Authority resolves both parties through the alias map (#8, `c80904e`). |
-| Low | `hex32` reinvented | 🟡 **Partial** | A canonical `pub fn hex32` now lives in `crdt::identity` and powers the fold, but `query.rs` and `api.rs` still keep private copies. |
-| Low | No `cargo-audit` in CI; `getrandom` version sprawl; `Cents: Display` | ⬜ **Open** | CI/manifests unchanged. |
+| Low | `from == to` settlement guard ignores aliases | ✅ **Fixed** | Authority resolves both parties through the alias map (#8, `c80904e`); the command-side guard now resolves aliases too (#48). |
+| Low | `hex32` reinvented | ✅ **Fixed** | #48. The `query.rs`/`api.rs` copies now use the canonical `crdt::identity::hex32`. |
+| Low | No `cargo-audit` in CI; `getrandom` version sprawl; `Cents: Display` | 🟡 **Partial** | #48/#6. `cargo audit` job + MSRV (1.85, `[workspace.package]` + CI) added; `Cents: Display` intentionally **not** added (it would hardcode minor units — the M5 bug — so `format_units` is the helper instead); `getrandom` sprawl unchanged. |
 
-**Net:** both **High** code findings (H1, H2) and the two highest-value Mediums (M3, M4)
-are fixed — H1 with a notably more thorough design than recommended. The **untouched
-`splittr-crypto` crate** is where the remaining cluster lives (H3, M1) alongside the
-small, cheap polish items (M2, M5, M6, M7). New since the review: a real claim/merge
-feature (#8), a `crdt::identity` module, and ADR-0006. Detailed findings below are
-**retained verbatim as the original review**; consult this table for current state.
+**Net (after this pass):** every code finding is now addressed. The High items
+(H1/H2/H3), all Mediums (M1–M7), and the Low/polish items are fixed bar the
+deliberate `Cents: Display` omission and the cosmetic `getrandom` version sprawl.
+Detailed findings below are **retained verbatim as the original review**; consult
+this table for current state.
 
 ## 1. Executive summary
 
