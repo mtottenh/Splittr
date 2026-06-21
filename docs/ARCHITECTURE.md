@@ -155,8 +155,12 @@ keeps the Dart side thin and lets the engine evolve without UI rewrites.
   (`splittr-crypto::Invite`, `friend`/`group:<id>` context) is the out-of-band
   trust artifact (link/QR) the shell shares; it is verified, not folded — the
   engine exposes `create_friend_invite`/`create_group_invite`/`verify_invite`,
-  `add_friend` and `confirmed_friends`. Transport/peering (#9/#20) and the accept
-  UX remain.
+  `add_friend` and `confirmed_friends`. The shell wraps a token in a canonical
+  link (`lib/core/invite_link.dart`, base64url — the one place the link format
+  lives), renders it as a copyable link + QR, and accepts a pasted invite:
+  verify → trust preview → declare friendship (friend invites). Group-join over
+  the wire, OS deep links (`app_links`), camera scan, the native share sheet,
+  and single-use replay tracking are the transport/platform tail (#7/#9/#20).
 - **Root kept cold** (#34, ADR-0005): **done** — daily launches open the engine
   with the root **locked** (`Engine::open_device_only`): only the device key is
   loaded, so routine use never touches the root. Privileged actions (enrol/revoke)
@@ -254,8 +258,10 @@ degraded web client is acceptable.
    (#1, #22).
 5. **Identity:** #6, #16.
 6. **Transport:** iroh behind `Transport` (#20). Invites/claim (#7, #8): the
-   engine (friend edges, signed invite tokens, claim/merge) is in place; the
-   remaining tail is peering/transport and the accept UX.
+   engine (friend edges, signed invite tokens, claim/merge) and the shell
+   generate/accept UI (link + QR, verify/preview, declare-friendship) are in
+   place; the remaining tail is peering/transport, OS deep links and group-join
+   over the wire.
 7. **Value-add features** on the stable core (#3, #4, #5, #10, #11, #12, #13, #17).
 
 ## 13. Traceability
