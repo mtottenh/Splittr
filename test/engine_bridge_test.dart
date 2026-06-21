@@ -440,6 +440,47 @@ void main() {
     expect(withBalance, 1);
   });
 
+  test('friend invites + declarations through the FFI (#7)', () async {
+    final tmp = Directory.systemTemp.createTempSync('splittr_bridge_inv');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    final engine = await Engine.open(
+      dbPath: '${tmp.path}/engine.redb',
+      identitySeed: List.filled(32, 101),
+      deviceSeed: List.filled(32, 102),
+      dbKey: List.filled(32, 103),
+      site: BigInt.from(14),
+    );
+    await engine.setMyName(name: 'Me');
+
+    // A friend invite verifies and previews; expiry invalidates it (#7).
+    final token = await engine.createFriendInvite(expiryMs: BigInt.from(1000));
+    final dto = (await verifyInvite(invite: token, nowMs: BigInt.from(500)))!;
+    expect(dto.context, 'friend');
+    expect(dto.valid, isTrue);
+    expect(dto.inviter, await engine.identityPublic());
+    final expired =
+        (await verifyInvite(invite: token, nowMs: BigInt.from(2000)))!;
+    expect(expired.valid, isFalse);
+
+    // Tampering breaks the signature (or fails to decode entirely).
+    final bad = List<int>.from(token)..last ^= 0xff;
+    final tampered = await verifyInvite(invite: bad, nowMs: BigInt.from(500));
+    expect(tampered == null || !tampered.valid, isTrue);
+
+    // A one-sided declaration is not yet a confirmed friendship.
+    await engine.addFriend(userId: 'id:${'11' * 32}');
+    expect(await engine.confirmedFriends(), isEmpty);
+
+    // A group invite carries the group id as its context.
+    final group =
+        await engine.createGroup(name: 'Trip', memberIds: [], currency: 'USD');
+    final gtoken =
+        await engine.createGroupInvite(groupId: group, expiryMs: BigInt.from(1000));
+    final gdto = (await verifyInvite(invite: gtoken, nowMs: BigInt.from(500)))!;
+    expect(gdto.context, 'group:$group');
+    expect(gdto.valid, isTrue);
+  });
+
   test('root seed vault + pairing SAS through the FFI (#34/#35)', () async {
     final seed = List.filled(32, 80);
     final blob = await sealRootSeed(passphrase: '1234', seed: seed);

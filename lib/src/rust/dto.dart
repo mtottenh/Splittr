@@ -340,6 +340,40 @@ class GroupSummaryDto {
           myNetCents == other.myNetCents;
 }
 
+/// A decoded invite for preview before accepting (#7).
+class InviteDto {
+  /// The inviter's identity public key, hex-encoded.
+  final String inviter;
+
+  /// `"friend"` or `"group:<id>"`.
+  final String context;
+  final BigInt expiryMs;
+
+  /// Signature valid and not expired.
+  final bool valid;
+
+  const InviteDto({
+    required this.inviter,
+    required this.context,
+    required this.expiryMs,
+    required this.valid,
+  });
+
+  @override
+  int get hashCode =>
+      inviter.hashCode ^ context.hashCode ^ expiryMs.hashCode ^ valid.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InviteDto &&
+          runtimeType == other.runtimeType &&
+          inviter == other.inviter &&
+          context == other.context &&
+          expiryMs == other.expiryMs &&
+          valid == other.valid;
+}
+
 /// A `(user, name, amount)` triple — one payer or one split share.
 class MemberAmountDto {
   final String userId;

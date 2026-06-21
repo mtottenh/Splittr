@@ -57,6 +57,14 @@ Future<Uint8List?> openRootSeed({
   blob: blob,
 );
 
+/// Decode and verify a shared invite blob (#7). Returns the inviter, context,
+/// and whether it is currently valid (signature ok and not expired as of
+/// `now_ms`, Unix ms); `None` if the blob is malformed.
+Future<InviteDto?> verifyInvite({
+  required List<int> invite,
+  required BigInt nowMs,
+}) => RustLib.instance.api.crateApiVerifyInvite(invite: invite, nowMs: nowMs);
+
 /// The device-enrolment short authentication string both devices compare to
 /// defeat a man-in-the-middle (#35). All keys are 32-byte hex; `challenge` is
 /// the 32-byte one-time pairing nonce.
@@ -78,6 +86,9 @@ abstract class Engine implements RustOpaqueInterface {
 
   Future<String> addExpense({required ExpenseInput input});
 
+  /// Declare friendship toward another identity (#7). Confirmed once mutual.
+  Future<void> addFriend({required String userId});
+
   Future<void> addMember({required String groupId, required String userId});
 
   Future<String> addPerson({required String name});
@@ -92,10 +103,24 @@ abstract class Engine implements RustOpaqueInterface {
   /// resolves to you with no balance change.
   Future<void> claimPerson({required String placeholder});
 
+  /// The local user's confirmed (mutual) friends (#7).
+  Future<List<String>> confirmedFriends();
+
+  /// A signed friend invite for the local identity, valid until `expiry_ms`
+  /// (Unix ms). Encodes to an opaque blob for a link/QR (#7). Needs the root
+  /// unlocked (#34).
+  Future<Uint8List> createFriendInvite({required BigInt expiryMs});
+
   Future<String> createGroup({
     required String name,
     required List<String> memberIds,
     required String currency,
+  });
+
+  /// A signed invite to join `group_id`, valid until `expiry_ms` (#7).
+  Future<Uint8List> createGroupInvite({
+    required String groupId,
+    required BigInt expiryMs,
   });
 
   Future<void> deleteExpense({required String expenseId});

@@ -65,6 +65,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupDetailDto dco_decode_box_autoadd_group_detail_dto(dynamic raw);
 
   @protected
+  InviteDto dco_decode_box_autoadd_invite_dto(dynamic raw);
+
+  @protected
   OriginalAmountDto dco_decode_box_autoadd_original_amount_dto(dynamic raw);
 
   @protected
@@ -90,6 +93,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  InviteDto dco_decode_invite_dto(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -147,6 +153,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupDetailDto? dco_decode_opt_box_autoadd_group_detail_dto(dynamic raw);
+
+  @protected
+  InviteDto? dco_decode_opt_box_autoadd_invite_dto(dynamic raw);
 
   @protected
   OriginalAmountDto? dco_decode_opt_box_autoadd_original_amount_dto(
@@ -235,6 +244,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  InviteDto sse_decode_box_autoadd_invite_dto(SseDeserializer deserializer);
+
+  @protected
   OriginalAmountDto sse_decode_box_autoadd_original_amount_dto(
     SseDeserializer deserializer,
   );
@@ -262,6 +274,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  InviteDto sse_decode_invite_dto(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -337,6 +352,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupDetailDto? sse_decode_opt_box_autoadd_group_detail_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  InviteDto? sse_decode_opt_box_autoadd_invite_dto(
     SseDeserializer deserializer,
   );
 
@@ -446,6 +466,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_invite_dto(
+    InviteDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_original_amount_dto(
     OriginalAmountDto self,
     SseSerializer serializer,
@@ -489,6 +515,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_invite_dto(InviteDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -586,6 +615,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_group_detail_dto(
     GroupDetailDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_invite_dto(
+    InviteDto? self,
     SseSerializer serializer,
   );
 

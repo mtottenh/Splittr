@@ -490,3 +490,94 @@ fn cannot_alias_yourself() {
         Err(AppError::Validation(_))
     ));
 }
+
+#[test]
+fn mutual_friendship_enables_a_cross_identity_friend_expense() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ops.redb");
+    let (alice_seed, bob_seed) = ([1u8; 32], [2u8; 32]);
+    let alice_id = user_id_for(&SigningKey::from_seed(alice_seed).public());
+    let bob_id = user_id_for(&SigningKey::from_seed(bob_seed).public());
+
+    // Alice declares friendship toward Bob — one-sided, not yet confirmed.
+    {
+        let mut alice = App::new(
+            Identity::from_seed(alice_seed),
+            RedbOpStore::open(&path).unwrap(),
+            SiteId(1),
+        )
+        .unwrap();
+        alice.add_friend(&bob_id).unwrap();
+        assert!(
+            alice.confirmed_friends().is_empty(),
+            "one-sided is not confirmed"
+        );
+    }
+
+    // Bob reciprocates and records a friend expense he paid, split with Alice.
+    {
+        let mut bob = App::new(
+            Identity::from_seed(bob_seed),
+            RedbOpStore::open(&path).unwrap(),
+            SiteId(2),
+        )
+        .unwrap();
+        bob.add_friend(&alice_id).unwrap();
+        assert_eq!(
+            bob.confirmed_friends(),
+            vec![alice_id.clone()],
+            "now mutual"
+        );
+
+        let mut pay = BTreeMap::new();
+        pay.insert(bob_id.clone(), Cents(1000));
+        bob.add_expense(ExpenseDraft {
+            fields: ExpenseFieldsInput {
+                description: "Dinner".into(),
+                paid_by: pay,
+                total: Cents(1000),
+                split: equal(&[&bob_id, &alice_id]),
+                category: "food".into(),
+                notes: None,
+                date_ms: 0,
+                original: None,
+            },
+            group: None,
+            draft: false,
+        })
+        .unwrap();
+        assert_eq!(bob.overall_net(), Cents(500), "Bob is owed 5.00");
+    }
+
+    // Reopening as Alice: the friendship + the friend expense both persisted.
+    let alice = App::new(
+        Identity::from_seed(alice_seed),
+        RedbOpStore::open(&path).unwrap(),
+        SiteId(1),
+    )
+    .unwrap();
+    assert_eq!(alice.confirmed_friends(), vec![bob_id.clone()]);
+    assert_eq!(alice.overall_net(), Cents(-500), "Alice owes 5.00");
+}
+
+#[test]
+fn cannot_befriend_yourself() {
+    let mut app = new_app();
+    let me = app.me().clone();
+    assert!(matches!(app.add_friend(&me), Err(AppError::Validation(_))));
+}
+
+#[test]
+fn create_invite_needs_the_root_unlocked() {
+    let mut app = new_app();
+    // Unlocked at open: a friend invite is signed and verifies.
+    let invite = app.create_invite("friend".into(), 1_000).unwrap();
+    assert!(invite.verify());
+
+    // Sealed root: creating an invite is gated.
+    app.lock_root();
+    assert!(matches!(
+        app.create_invite("friend".into(), 1_000),
+        Err(AppError::RootLocked)
+    ));
+}

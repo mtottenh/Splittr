@@ -147,3 +147,14 @@ pub struct DeviceViewDto {
     pub revoked: bool,
     pub this_device: bool,
 }
+
+/// A decoded invite for preview before accepting (#7).
+pub struct InviteDto {
+    /// The inviter's identity public key, hex-encoded.
+    pub inviter: String,
+    /// `"friend"` or `"group:<id>"`.
+    pub context: String,
+    pub expiry_ms: u64,
+    /// Signature valid and not expired.
+    pub valid: bool,
+}

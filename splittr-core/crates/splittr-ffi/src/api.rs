@@ -9,14 +9,14 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use splittr_app::{
-    App, Cents, ExpenseDraft, GroupId, Identity, PairingTranscript, PublicKey, RedbOpStore,
+    App, Cents, ExpenseDraft, GroupId, Identity, Invite, PairingTranscript, PublicKey, RedbOpStore,
     SettlementId, SiteId, UserId,
 };
 
 use crate::convert::to_fields;
 use crate::dto::{
     ActivityEntryDto, DeviceViewDto, ExpenseInput, FriendBalanceDto, FriendDetailDto,
-    GroupDetailDto, GroupSummaryDto,
+    GroupDetailDto, GroupSummaryDto, InviteDto,
 };
 
 pub struct Engine {
@@ -136,6 +136,41 @@ impl Engine {
         self.lock()
             .merge_people(&UserId::new(duplicate), &UserId::new(keep))?;
         Ok(())
+    }
+
+    // --- friends & invites (#7) -------------------------------------------
+
+    /// Declare friendship toward another identity (#7). Confirmed once mutual.
+    pub fn add_friend(&self, user_id: String) -> Result<()> {
+        self.lock().add_friend(&UserId::new(user_id))?;
+        Ok(())
+    }
+
+    /// The local user's confirmed (mutual) friends (#7).
+    pub fn confirmed_friends(&self) -> Vec<String> {
+        self.lock()
+            .confirmed_friends()
+            .into_iter()
+            .map(|u| u.0)
+            .collect()
+    }
+
+    /// A signed friend invite for the local identity, valid until `expiry_ms`
+    /// (Unix ms). Encodes to an opaque blob for a link/QR (#7). Needs the root
+    /// unlocked (#34).
+    pub fn create_friend_invite(&self, expiry_ms: u64) -> Result<Vec<u8>> {
+        Ok(self
+            .lock()
+            .create_invite("friend".into(), expiry_ms)?
+            .to_bytes())
+    }
+
+    /// A signed invite to join `group_id`, valid until `expiry_ms` (#7).
+    pub fn create_group_invite(&self, group_id: String, expiry_ms: u64) -> Result<Vec<u8>> {
+        Ok(self
+            .lock()
+            .create_invite(format!("group:{group_id}"), expiry_ms)?
+            .to_bytes())
     }
 
     // --- groups & members --------------------------------------------------
@@ -408,6 +443,19 @@ pub fn seal_root_seed(passphrase: String, seed: Vec<u8>) -> Result<Vec<u8>> {
 /// was tampered with (#34).
 pub fn open_root_seed(passphrase: String, blob: Vec<u8>) -> Option<Vec<u8>> {
     splittr_app::open_seed(&passphrase, &blob).map(|s| s.to_vec())
+}
+
+/// Decode and verify a shared invite blob (#7). Returns the inviter, context,
+/// and whether it is currently valid (signature ok and not expired as of
+/// `now_ms`, Unix ms); `None` if the blob is malformed.
+pub fn verify_invite(invite: Vec<u8>, now_ms: u64) -> Option<InviteDto> {
+    let invite = Invite::from_bytes(&invite)?;
+    Some(InviteDto {
+        inviter: hex32(&invite.inviter.0),
+        context: invite.context.clone(),
+        expiry_ms: invite.expiry_ms,
+        valid: invite.verify() && !invite.is_expired(now_ms),
+    })
 }
 
 /// The device-enrolment short authentication string both devices compare to

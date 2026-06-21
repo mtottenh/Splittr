@@ -290,6 +290,45 @@ fn merge_people_preserves_balances_through_the_ffi() {
 }
 
 #[test]
+fn invites_and_friend_declarations_through_the_ffi() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Engine::open(db_path(&dir), seed(), device_seed(), db_key(), 1).unwrap();
+    engine.set_my_name("Me".into()).unwrap();
+
+    // A friend invite verifies and previews; expiry/tampering invalidate it (#7).
+    let token = engine.create_friend_invite(1_000).unwrap();
+    let dto = verify_invite(token.clone(), 500).unwrap();
+    assert_eq!(dto.context, "friend");
+    assert!(dto.valid);
+    assert!(
+        !verify_invite(token.clone(), 2_000).unwrap().valid,
+        "expired"
+    );
+    let mut bad = token.clone();
+    *bad.last_mut().unwrap() ^= 0xff;
+    assert!(
+        verify_invite(bad, 500).is_none_or(|d| !d.valid),
+        "tampered invite is invalid"
+    );
+
+    // A one-sided declaration is not yet a confirmed friendship.
+    engine
+        .add_friend(format!("id:{}", "11".repeat(32)))
+        .unwrap();
+    assert!(engine.confirmed_friends().is_empty());
+
+    // A group invite carries the group id as its context.
+    let group = engine
+        .create_group("Trip".into(), vec![], "USD".into())
+        .unwrap();
+    let gtoken = engine.create_group_invite(group.clone(), 1_000).unwrap();
+    assert_eq!(
+        verify_invite(gtoken, 500).unwrap().context,
+        format!("group:{group}")
+    );
+}
+
+#[test]
 fn rejects_a_malformed_seed() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Engine::open(db_path(&dir), vec![1, 2, 3], device_seed(), db_key(), 1).is_err());

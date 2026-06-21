@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 
 use splittr_crdt::{
-    Cents, ExpenseFields, ExpenseId, GroupId, Op, OpKind, OriginalAmount, Projection, SettlementId,
-    SiteId, SplitPlan, UserId,
+    Cents, ExpenseFields, ExpenseId, GroupId, Invite, Op, OpKind, OriginalAmount, Projection,
+    SettlementId, SiteId, SplitPlan, UserId,
 };
 use splittr_store::{Applied, OpStore, Repository};
 use uuid::Uuid;
@@ -179,6 +179,43 @@ impl<S: OpStore> App<S> {
             alias: alias.clone(),
             canonical: canonical.clone(),
         })
+    }
+
+    // --- friends & invites (#7) -------------------------------------------
+
+    /// Declare a friendship toward `other` (#7). The edge is confirmed once they
+    /// reciprocate; a confirmed edge lets you record non-group expenses together.
+    pub fn add_friend(&mut self, other: &UserId) -> Result<()> {
+        if other == self.me() {
+            return Err(AppError::Validation("cannot befriend yourself".into()));
+        }
+        self.commit(OpKind::DeclareFriend {
+            other: other.clone(),
+        })
+    }
+
+    /// The local user's confirmed (mutual) friends (#7).
+    pub fn confirmed_friends(&self) -> Vec<UserId> {
+        let projection = self.repo.projection();
+        let me = projection
+            .aliases
+            .get(self.me())
+            .cloned()
+            .unwrap_or_else(|| self.me().clone());
+        projection
+            .friends
+            .get(&me)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Create a signed invite for the local identity (#7), valid until
+    /// `expiry_ms` (Unix ms). `context` is `"friend"` or a group id. Signed by
+    /// the identity (root) key, so it needs the root unlocked (#34).
+    pub fn create_invite(&self, context: String, expiry_ms: u64) -> Result<Invite> {
+        let key = self.identity.root_key().ok_or(AppError::RootLocked)?;
+        let nonce = *Uuid::new_v4().as_bytes();
+        Ok(Invite::create(key, context, nonce, expiry_ms))
     }
 
     // --- groups ------------------------------------------------------------
