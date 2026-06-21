@@ -1,0 +1,17 @@
+[package]
+name = "splittr-sync"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+description = "Transport-agnostic op-set reconciliation + the Transport seam for Splittr sync (#9/#20)."
+
+[dependencies]
+splittr-crdt = { path = "../splittr-crdt" }
+splittr-store = { path = "../splittr-store" }
+serde = { workspace = true }
+postcard = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }

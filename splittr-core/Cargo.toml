@@ -5,6 +5,7 @@ members = [
     "crates/splittr-crypto",
     "crates/splittr-crdt",
     "crates/splittr-store",
+    "crates/splittr-sync",
     "crates/splittr-app",
     "crates/splittr-ffi",
 ]
@@ -48,6 +49,9 @@ anyhow = "1"
 tracing = "0.1"
 proptest = "1"
 tempfile = "3"
+# Async runtime — for exercising the async `Transport` over an in-memory duplex
+# in tests (the iroh transport is the production user).
+tokio = { version = "1", features = ["rt", "macros", "sync"] }
 
 [profile.release]
 opt-level = 3

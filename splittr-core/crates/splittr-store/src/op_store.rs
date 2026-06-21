@@ -17,6 +17,12 @@ pub trait OpStore {
     /// Whether an op with this id is stored.
     fn contains(&self, id: &OpId) -> Result<bool>;
 
+    /// The op with this id, if stored. Default scans [`OpStore::ops`]; backends
+    /// may override with a direct lookup.
+    fn get(&self, id: &OpId) -> Result<Option<Op>> {
+        Ok(self.ops()?.into_iter().find(|o| &o.id == id))
+    }
+
     /// All stored ops.
     fn ops(&self) -> Result<Vec<Op>>;
 
@@ -47,6 +53,10 @@ impl OpStore for MemoryOpStore {
 
     fn contains(&self, id: &OpId) -> Result<bool> {
         Ok(self.ops.contains_key(id))
+    }
+
+    fn get(&self, id: &OpId) -> Result<Option<Op>> {
+        Ok(self.ops.get(id).cloned())
     }
 
     fn ops(&self) -> Result<Vec<Op>> {
