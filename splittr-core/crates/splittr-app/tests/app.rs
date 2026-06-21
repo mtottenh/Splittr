@@ -508,6 +508,34 @@ fn claiming_a_placeholder_preserves_balances_with_zero_change() {
 }
 
 #[test]
+fn settlement_between_two_aliased_ids_is_rejected() {
+    let mut app = new_app();
+    app.set_my_name("Me").unwrap();
+    let me = app.me().clone();
+    let bob = app.add_person("Bob").unwrap();
+    let bob_dup = app.add_person("Bobby").unwrap();
+    let group = app
+        .create_group("Trip", &[bob.clone(), bob_dup.clone()])
+        .unwrap();
+
+    // Before merging, a settlement between the two distinct ids is allowed.
+    app.record_settlement(&group, &bob, &bob_dup, Cents(100))
+        .unwrap();
+
+    // After merging them into one person, a payment between the two ids is a
+    // self-settlement and must be rejected even though the raw ids differ.
+    app.merge_people(&bob_dup, &bob).unwrap();
+    let err = app.record_settlement(&group, &bob, &bob_dup, Cents(100));
+    assert!(
+        err.is_err(),
+        "a self-settlement across aliases must be rejected"
+    );
+    // A genuine cross-person settlement still works.
+    app.record_settlement(&group, &me, &bob, Cents(100))
+        .unwrap();
+}
+
+#[test]
 fn cannot_alias_yourself() {
     let mut app = new_app();
     let me = app.me().clone();

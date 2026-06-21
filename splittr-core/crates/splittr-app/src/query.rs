@@ -1,7 +1,7 @@
 //! Read-side view-models — UI-friendly projections over the engine state.
 
 use splittr_crdt::{
-    minor_units, my_net_by_group, net_balances, pairwise_with, settle_up, Cents, ExpenseId,
+    hex32, minor_units, my_net_by_group, net_balances, pairwise_with, settle_up, Cents, ExpenseId,
     ExpenseRecord, GroupId, Op, OpKind, OriginalAmount, Projection, PublicKey, SettlementId,
     Transfer, UserId,
 };
@@ -15,14 +15,6 @@ pub struct DeviceView {
     pub revoked: bool,
     /// Whether this is the device currently running.
     pub this_device: bool,
-}
-
-fn hex32(bytes: &[u8; 32]) -> String {
-    let mut s = String::with_capacity(64);
-    for b in bytes {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
 }
 
 /// Devices authorized for `identity`, with the running device flagged.

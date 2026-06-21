@@ -9,8 +9,8 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use splittr_app::{
-    user_id_for, App, Cents, ExpenseDraft, GroupId, Identity, Invite, PairingTranscript, PublicKey,
-    RedbOpStore, SettlementId, SiteId, UserId,
+    hex32, user_id_for, App, Cents, ExpenseDraft, GroupId, Identity, Invite, PairingTranscript,
+    PublicKey, RedbOpStore, SettlementId, SiteId, UserId,
 };
 
 use crate::convert::to_fields;
@@ -379,10 +379,6 @@ fn seed32(bytes: &[u8], what: &str) -> Result<[u8; 32]> {
     let mut seed = [0u8; 32];
     seed.copy_from_slice(bytes);
     Ok(seed)
-}
-
-fn hex32(bytes: &[u8; 32]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn parse_hex32(s: &str) -> Result<[u8; 32]> {

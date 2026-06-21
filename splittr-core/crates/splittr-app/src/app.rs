@@ -363,7 +363,13 @@ impl<S: OpStore> App<S> {
         if let Some(group) = group {
             self.require_member(group)?;
         }
-        if from == to {
+        // Resolve both parties through the alias map so a self-settlement between
+        // two ids that are the same person (#8) is still rejected, not just the
+        // literal `from == to` case.
+        let p = self.repo.projection();
+        let from_canon = p.aliases.get(from).unwrap_or(from);
+        let to_canon = p.aliases.get(to).unwrap_or(to);
+        if from_canon == to_canon {
             return Err(AppError::Validation("payer and payee must differ".into()));
         }
         if amount.0 <= 0 {
