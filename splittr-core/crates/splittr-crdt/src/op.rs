@@ -88,6 +88,12 @@ pub enum OpKind {
         alias: UserId,
         canonical: UserId,
     },
+    /// Declare a one-way friendship intent toward `other` (#7). Self-signed;
+    /// a **mutual** declaration (both parties) forms a friend edge that gates
+    /// non-group friend expenses (#38). Grow-only and order-independent.
+    DeclareFriend {
+        other: UserId,
+    },
     /// A user's display profile — LWW by HLC (rule 2). Covers identity/people
     /// (#6/#2): a real user or a placeholder, both just have a name here.
     UpsertProfile {

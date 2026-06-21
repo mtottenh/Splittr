@@ -51,6 +51,15 @@ fn op_by(name: &str, counter: u32, kind: OpKind) -> Op {
     Op::signed(hlc(counter), &key(name), kind)
 }
 
+/// The two mutual `DeclareFriend` ops that confirm a friendship between `a` and
+/// `b` (uses counters `c` and `c + 1`).
+fn friend(a: &str, b: &str, c: u32) -> [Op; 2] {
+    [
+        op_by(a, c, OpKind::DeclareFriend { other: uid(b) }),
+        op_by(b, c + 1, OpKind::DeclareFriend { other: uid(a) }),
+    ]
+}
+
 /// CreateGroup `g0` authored by [`test_key`], making it the founding member so
 /// that `op(..)` is entitled to act on `g0`. Prepend to a group-scoped test.
 fn g0() -> Op {
@@ -185,9 +194,10 @@ fn membership_is_lww_and_order_independent() {
 
 #[test]
 fn alias_merge_preserves_balances_with_zero_change() {
-    // A real friend expense: a pays 10.00 split equally with b. Authored by a
-    // (a participant), so it is entitled even with no group (#31/#38).
+    // A real friend expense between confirmed friends a & b: a pays 10.00 split
+    // equally with b, authored by a (a participant + friend, #31/#38).
     let (a, b) = (uid("a"), uid("b"));
+    let [fa, fb] = friend("a", "b", 10);
     let expense = OpKind::CreateExpense {
         expense: ExpenseId::from("e0"),
         group: None,
@@ -195,7 +205,11 @@ fn alias_merge_preserves_balances_with_zero_change() {
         draft: false,
     };
 
-    let before = net_balances(&project(&[op_by("a", 0, expense.clone())]));
+    let before = net_balances(&project(&[
+        fa.clone(),
+        fb.clone(),
+        op_by("a", 0, expense.clone()),
+    ]));
     assert_eq!(before.get(&a), Some(&Cents(500)));
     assert_eq!(before.get(&b), Some(&Cents(-500)));
 
@@ -208,7 +222,7 @@ fn alias_merge_preserves_balances_with_zero_change() {
             canonical: a.clone(),
         },
     );
-    let after = net_balances(&project(&[op_by("a", 0, expense), merge]));
+    let after = net_balances(&project(&[fa, fb, op_by("a", 0, expense), merge]));
     assert!(after.is_empty(), "merged users net to zero");
 }
 
@@ -574,18 +588,24 @@ fn group_currency_defaults_to_usd_and_is_lww() {
 
 #[test]
 fn non_group_expense_counts_in_balances_but_not_in_any_group() {
-    // A non-group friend expense: a pays 10.00 split with b, authored by a.
+    // A non-group friend expense between confirmed friends: a pays 10.00 split
+    // with b, authored by a.
     let (a, b) = (uid("a"), uid("b"));
-    let p = project(&[op_by(
-        "a",
-        0,
-        OpKind::CreateExpense {
-            expense: ExpenseId::from("e0"),
-            group: None,
-            fields: single_payer_ids(&a, 1000, &[a.clone(), b.clone()]),
-            draft: false,
-        },
-    )]);
+    let [fa, fb] = friend("a", "b", 10);
+    let p = project(&[
+        fa,
+        fb,
+        op_by(
+            "a",
+            0,
+            OpKind::CreateExpense {
+                expense: ExpenseId::from("e0"),
+                group: None,
+                fields: single_payer_ids(&a, 1000, &[a.clone(), b.clone()]),
+                draft: false,
+            },
+        ),
+    ]);
 
     // It moves balances globally.
     let net = net_balances(&p);
@@ -909,4 +929,91 @@ fn concurrent_claims_of_a_placeholder_converge() {
     assert_eq!(forward.aliases.get(&guest), Some(&canon));
     // `me` (founder) is unaffected.
     assert_eq!(me().0.find("id:"), Some(0));
+}
+
+// --- Friendships & friend-expense entitlement (#7/#38) ---------------------
+
+fn friend_expense(payer: &str, others: &[&UserId]) -> OpKind {
+    let mut parties = vec![uid(payer)];
+    parties.extend(others.iter().map(|u| (*u).clone()));
+    OpKind::CreateExpense {
+        expense: ExpenseId::from("e0"),
+        group: None,
+        fields: single_payer_ids(&uid(payer), 1000, &parties),
+        draft: false,
+    }
+}
+
+#[test]
+fn a_friend_edge_needs_both_declarations() {
+    let (a, b) = (uid("a"), uid("b"));
+    // Only a declares → not yet friends → a's friend expense with b is dropped.
+    let one_sided = project(&[
+        op_by("a", 1, OpKind::DeclareFriend { other: b.clone() }),
+        op_by("a", 2, friend_expense("a", &[&b])),
+    ]);
+    assert!(
+        one_sided.expenses.is_empty(),
+        "a one-sided declaration is not a friendship"
+    );
+    assert!(one_sided.friends.is_empty());
+
+    // Both declare → confirmed edge → the expense counts.
+    let [fa, fb] = friend("a", "b", 1);
+    let mutual = project(&[fa, fb, op_by("a", 3, friend_expense("a", &[&b]))]);
+    assert!(mutual.expenses.contains_key(&ExpenseId::from("e0")));
+    assert!(mutual.friends[&a].contains(&b) && mutual.friends[&b].contains(&a));
+}
+
+#[test]
+fn friend_expense_between_non_friends_is_dropped() {
+    // a and b never declared friendship; a's "b owes me" must not count.
+    let (a, b) = (uid("a"), uid("b"));
+    let p = project(&[op_by("a", 1, friend_expense("a", &[&b]))]);
+    assert!(
+        p.expenses.is_empty(),
+        "strangers can't post friend expenses"
+    );
+    let _ = a;
+}
+
+#[test]
+fn friend_expense_with_a_placeholder_needs_no_reciprocation() {
+    // Tracking a guest (placeholder, no key) is always allowed for a participant.
+    let guest = UserId::from("user:guest");
+    let p = project(&[op_by("a", 1, friend_expense("a", &[&guest]))]);
+    assert!(
+        p.expenses.contains_key(&ExpenseId::from("e0")),
+        "a guest needs no friend edge"
+    );
+}
+
+#[test]
+fn friendship_is_order_independent_and_alias_aware() {
+    let (a, b) = (uid("a"), uid("b"));
+    let [fa, fb] = friend("a", "b", 1);
+    let expense = op_by("a", 3, friend_expense("a", &[&b]));
+    let forward = project(&[fa.clone(), fb.clone(), expense.clone()]);
+    let backward = project(&[expense, fb, fa]);
+    assert_eq!(forward, backward, "friendship folds order-independently");
+
+    // A friend expense with a *claimed* guest: the guest is aliased to a real
+    // friend, so the edge resolves through the alias.
+    let guest = UserId::from("user:guest");
+    let claim = op_by(
+        "b",
+        5,
+        OpKind::AddAlias {
+            alias: guest.clone(),
+            canonical: b.clone(),
+        },
+    );
+    let [ga, gb] = friend("a", "b", 6);
+    let with_guest = op_by("a", 8, friend_expense("a", &[&guest]));
+    let p = project(&[claim, ga, gb, with_guest]);
+    assert!(
+        p.expenses.contains_key(&ExpenseId::from("e0")),
+        "an expense with a guest who is a claimed friend counts"
+    );
+    assert_eq!(net_balances(&p).get(&a), Some(&Cents(500)));
 }

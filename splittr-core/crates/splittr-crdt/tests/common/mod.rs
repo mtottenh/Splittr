@@ -147,6 +147,35 @@ pub fn op_kind() -> impl Strategy<Value = OpKind> {
             alias: placeholder(),
             canonical: member(m as u64),
         }),
+        // Declare friendship toward another person (#7); mutual pairs are
+        // confirmed in `setup`, so some non-group expenses authorize.
+        (0u8..4).prop_map(|u| OpKind::DeclareFriend { other: person(u) }),
+        // Non-group (friend) expenses + settlements (#31/#38) — gated on a
+        // confirmed friend edge between the author and each real participant.
+        (
+            0u8..6,
+            prop::collection::vec(any::<bool>(), 4..=4),
+            prop::collection::vec(any::<bool>(), 4..=4),
+            1i64..100_000,
+            any::<bool>(),
+        )
+            .prop_map(
+                |(e, payer_mask, split_mask, total, draft)| OpKind::CreateExpense {
+                    expense: expense(e),
+                    group: None,
+                    fields: fields(total, &payer_mask, &split_mask),
+                    draft,
+                }
+            ),
+        (0u8..4, 0u8..4, 0u8..4, 1i64..100_000).prop_map(|(s, from, to, amount)| {
+            OpKind::RecordSettlement {
+                settlement: settlement(s),
+                group: None,
+                from: person(from),
+                to: person(to),
+                amount: Cents(amount),
+            }
+        }),
         (0u8..4, 0u8..3).prop_map(|(u, n)| OpKind::UpsertProfile {
             user: person(u),
             name: format!("name{n}")
@@ -197,7 +226,19 @@ fn setup() -> Vec<(OpKind, u64)> {
         ),
         (membership(1, member(0)), 1),
         (membership(1, member(2)), 1),
+        // Mutual friendships among the members, so non-group friend expenses
+        // between them can authorize (#7/#38).
+        (declare(member(1)), 0),
+        (declare(member(2)), 0),
+        (declare(member(0)), 1),
+        (declare(member(2)), 1),
+        (declare(member(0)), 2),
+        (declare(member(1)), 2),
     ]
+}
+
+fn declare(other: UserId) -> OpKind {
+    OpKind::DeclareFriend { other }
 }
 
 fn membership(g: u8, user: UserId) -> OpKind {

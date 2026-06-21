@@ -17,6 +17,7 @@
 //! Module layout: [`clock`] (HLC), [`op`] (operations), [`projection`] (read
 //! model), [`materialize`] (the fold), [`balance`] (derived balances).
 
+mod authorize;
 mod balance;
 mod clock;
 mod identity;
@@ -36,7 +37,7 @@ pub use projection::{
 // Re-export the crypto + domain types that appear in this crate's public API so
 // callers (and tests) need only depend on `splittr-crdt`.
 pub use splittr_crypto::{
-    open_seed, recovery_phrase, seal_seed, seed_from_phrase, AgreementKey, AgreementPublic,
+    open_seed, recovery_phrase, seal_seed, seed_from_phrase, AgreementKey, AgreementPublic, Invite,
     PairingTranscript, PublicKey, Signature, SigningKey,
 };
 pub use splittr_domain::{

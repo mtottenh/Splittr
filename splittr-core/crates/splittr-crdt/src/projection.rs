@@ -20,6 +20,10 @@ pub struct Projection {
     pub aliases: BTreeMap<UserId, UserId>,
     /// Device keys authorized to act for an identity (#16/ADR-0005).
     pub devices: BTreeMap<PublicKey, DeviceRecord>,
+    /// Confirmed (mutual) friendships: each user → the set of users who have
+    /// reciprocally declared friendship with them (#7). Gates non-group friend
+    /// expenses (#38).
+    pub friends: BTreeMap<UserId, BTreeSet<UserId>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -56,6 +60,7 @@ impl Projection {
                 .collect(),
             aliases: self.aliases.clone(),
             devices: BTreeMap::new(),
+            friends: BTreeMap::new(),
         }
     }
 }
