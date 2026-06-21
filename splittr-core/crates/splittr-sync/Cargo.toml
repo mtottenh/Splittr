@@ -10,6 +10,9 @@ splittr-crdt = { path = "../splittr-crdt" }
 splittr-store = { path = "../splittr-store" }
 serde = { workspace = true }
 postcard = { workspace = true }
+# Async byte-stream IO for the framed transport (a `Transport` over any
+# AsyncRead+AsyncWrite pair — e.g. an iroh QUIC bi-stream, #20).
+tokio = { version = "1", features = ["io-util"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
